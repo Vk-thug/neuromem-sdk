@@ -1,0 +1,41 @@
+neuromem:
+  model:
+    # Embedding model for vector representations
+    embedding: text-embedding-3-large
+    
+    # LLM for memory consolidation
+    consolidation_llm: gpt-4o-mini
+
+  storage:
+    # Database backend
+    database:
+      type: memory  # Options: postgres | sqlite | memory
+      # url: postgresql://user:pass@localhost:5432/neuromem  # For postgres
+      # url: neuromem.db  # For sqlite
+      url: null  # For in-memory
+
+    # Vector store (optional, can use database for vectors too)
+    vector_store:
+      type: memory  # Options: chroma | pgvector | redis | memory
+      collection: user_memory
+
+    # Cache configuration (optional)
+    cache:
+      type: memory  # Options: redis | memory
+      ttl_seconds: 3600
+
+  memory:
+    # Enable memory decay
+    decay_enabled: true
+    
+    # Consolidate episodic memories every N turns
+    consolidation_interval: 10
+    
+    # Maximum active memories to keep in context
+    max_active_memories: 50
+    
+    # How long to keep episodic memories before decay
+    episodic_retention_days: 30
+    
+    # Minimum confidence threshold for retrieval
+    min_confidence_threshold: 0.3

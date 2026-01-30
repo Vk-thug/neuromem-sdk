@@ -1,0 +1,111 @@
+"""
+Core type definitions for the NeuroMem SDK.
+"""
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import List, Literal
+from enum import Enum
+
+
+class MemoryType(str, Enum):
+    """Types of memory in the NeuroMem system."""
+    EPISODIC = "episodic"
+    SEMANTIC = "semantic"
+    PROCEDURAL = "procedural"
+    AFFECTIVE = "affective"
+
+
+@dataclass
+class MemoryItem:
+    """
+    A single memory item in the NeuroMem system.
+    
+    Attributes:
+        id: Unique identifier for the memory
+        user_id: ID of the user this memory belongs to
+        content: The actual memory content
+        embedding: Vector embedding of the content
+        memory_type: Type of memory (episodic, semantic, procedural, affective)
+        salience: How important/salient this memory is (0.0-1.0)
+        confidence: How confident we are in this memory (0.0-1.0)
+        created_at: When the memory was created
+        last_accessed: When the memory was last retrieved
+        decay_rate: Rate at which this memory decays over time
+        reinforcement: Number of times this memory has been reinforced
+        inferred: Whether this memory was inferred vs explicitly stated
+        editable: Whether the user can edit this memory
+        tags: Optional tags for categorization
+    """
+    id: str
+    user_id: str
+    content: str
+    embedding: List[float]
+    memory_type: MemoryType
+    salience: float
+    confidence: float
+    created_at: datetime
+    last_accessed: datetime
+    decay_rate: float
+    reinforcement: int
+    inferred: bool
+    editable: bool
+    tags: List[str] = field(default_factory=list)
+    
+    def to_dict(self):
+        """Convert to dictionary for storage."""
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "content": self.content,
+            "embedding": self.embedding,
+            "memory_type": self.memory_type.value if isinstance(self.memory_type, MemoryType) else self.memory_type,
+            "salience": self.salience,
+            "confidence": self.confidence,
+            "created_at": self.created_at.isoformat(),
+            "last_accessed": self.last_accessed.isoformat(),
+            "decay_rate": self.decay_rate,
+            "reinforcement": self.reinforcement,
+            "inferred": self.inferred,
+            "editable": self.editable,
+            "tags": self.tags,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: dict):
+        """Create from dictionary."""
+        return cls(
+            id=data["id"],
+            user_id=data["user_id"],
+            content=data["content"],
+            embedding=data["embedding"],
+            memory_type=MemoryType(data["memory_type"]),
+            salience=data["salience"],
+            confidence=data["confidence"],
+            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data["created_at"], str) else data["created_at"],
+            last_accessed=datetime.fromisoformat(data["last_accessed"]) if isinstance(data["last_accessed"], str) else data["last_accessed"],
+            decay_rate=data["decay_rate"],
+            reinforcement=data["reinforcement"],
+            inferred=data["inferred"],
+            editable=data["editable"],
+            tags=data.get("tags", []),
+        )
+
+
+@dataclass
+class RetrievalContext:
+    """Context for memory retrieval."""
+    query: str
+    task_type: str
+    k: int
+    filters: dict = field(default_factory=dict)
+
+
+@dataclass
+class ConsolidationResult:
+    """Result of a consolidation operation."""
+    promoted_count: int
+    decayed_count: int
+    merged_count: int
+    new_semantic_memories: List[MemoryItem] = field(default_factory=list)
+    new_procedural_memories: List[MemoryItem] = field(default_factory=list)
