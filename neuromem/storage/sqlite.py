@@ -36,7 +36,7 @@ class SQLiteBackend:
         cursor = self.conn.cursor()
         
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS memory_items (
+            CREATE TABLE IF NOT EXISTS user_memories (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 content TEXT NOT NULL,
@@ -56,12 +56,12 @@ class SQLiteBackend:
         
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memory_user 
-            ON memory_items(user_id)
+            ON user_memories(user_id)
         """)
         
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memory_type 
-            ON memory_items(memory_type)
+            ON user_memories(memory_type)
         """)
         
         self.conn.commit()
@@ -71,7 +71,7 @@ class SQLiteBackend:
         cursor = self.conn.cursor()
         
         # Check if exists
-        cursor.execute("SELECT reinforcement FROM memory_items WHERE id = ?", (item.id,))
+        cursor.execute("SELECT reinforcement FROM user_memories WHERE id = ?", (item.id,))
         existing = cursor.fetchone()
         
         reinforcement = item.reinforcement
@@ -79,7 +79,7 @@ class SQLiteBackend:
             reinforcement = existing[0] + 1
         
         cursor.execute("""
-            INSERT OR REPLACE INTO memory_items
+            INSERT OR REPLACE INTO user_memories
             (id, user_id, content, embedding, memory_type, salience, confidence,
              created_at, last_accessed, decay_rate, reinforcement, inferred, editable, tags)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -130,7 +130,7 @@ class SQLiteBackend:
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
         
         cursor.execute(f"""
-            SELECT * FROM memory_items
+            SELECT * FROM user_memories
             WHERE {where_sql}
         """, params)
         
@@ -171,7 +171,7 @@ class SQLiteBackend:
     def get_by_id(self, item_id: str) -> MemoryItem | None:
         """Get a memory by ID."""
         cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM memory_items WHERE id = ?", (item_id,))
+        cursor.execute("SELECT * FROM user_memories WHERE id = ?", (item_id,))
         row = cursor.fetchone()
         
         if not row:
@@ -183,7 +183,7 @@ class SQLiteBackend:
         """Update an existing memory item."""
         cursor = self.conn.cursor()
         cursor.execute("""
-            UPDATE memory_items
+            UPDATE user_memories
             SET content = ?,
                 embedding = ?,
                 last_accessed = ?,
@@ -203,7 +203,7 @@ class SQLiteBackend:
     def delete(self, item_id: str) -> bool:
         """Delete a memory item."""
         cursor = self.conn.cursor()
-        cursor.execute("DELETE FROM memory_items WHERE id = ?", (item_id,))
+        cursor.execute("DELETE FROM user_memories WHERE id = ?", (item_id,))
         self.conn.commit()
         return cursor.rowcount > 0
     
@@ -218,14 +218,14 @@ class SQLiteBackend:
         
         if memory_type:
             cursor.execute("""
-                SELECT * FROM memory_items
+                SELECT * FROM user_memories
                 WHERE user_id = ? AND memory_type = ?
                 ORDER BY last_accessed DESC
                 LIMIT ?
             """, (user_id, memory_type, limit))
         else:
             cursor.execute("""
-                SELECT * FROM memory_items
+                SELECT * FROM user_memories
                 WHERE user_id = ?
                 ORDER BY last_accessed DESC
                 LIMIT ?

@@ -4,7 +4,7 @@ Episodic memory for NeuroMem.
 Stores recent user-agent interactions (what happened).
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.storage.base import MemoryBackend
 
@@ -22,7 +22,7 @@ class EpisodicMemory:
         Initialize episodic memory.
         
         Args:
-            backend: Storage backend
+            backend: Primary storage backend (Vector Store)
             user_id: User ID this memory belongs to
         """
         self.backend = backend
@@ -38,6 +38,7 @@ class EpisodicMemory:
         if item.memory_type != MemoryType.EPISODIC:
             raise ValueError("Item must be episodic memory type")
         
+        # Write to vector store
         self.backend.upsert(item)
     
     def retrieve(
@@ -60,6 +61,7 @@ class EpisodicMemory:
         filters["user_id"] = self.user_id
         filters["memory_type"] = MemoryType.EPISODIC.value
         
+        # Always use vector store for retrieval
         return self.backend.query(embedding, filters, k)
     
     def get_all(self, limit: int = 100) -> List[MemoryItem]:
@@ -103,6 +105,7 @@ class EpisodicMemory:
         if item.user_id != self.user_id:
             raise ValueError("Cannot update memory for different user")
         
+        # Update vector store
         self.backend.update(item)
     
     def delete(self, memory_id: str) -> bool:
@@ -117,5 +120,6 @@ class EpisodicMemory:
         """
         item = self.get_by_id(memory_id)
         if item:
+            # Delete from vector store
             return self.backend.delete(memory_id)
         return False

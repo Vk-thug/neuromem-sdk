@@ -1,7 +1,7 @@
 """
 PostgreSQL + pgvector storage backend for NeuroMem.
 
-Production-ready storage with vector similarity search.
+Provides persistent storage for user memories with vector support.
 """
 
 import json
@@ -16,9 +16,10 @@ class PostgresBackend:
     """
     PostgreSQL storage backend with pgvector extension.
     
+    Serves as the persistent storage for user-facing memory management (CRUD).
+    
     Requires:
     - PostgreSQL with pgvector extension
-    - Database schema created (see schema.sql)
     """
     
     def __init__(self, conn_str: str):
@@ -27,7 +28,6 @@ class PostgresBackend:
         
         Args:
             conn_str: PostgreSQL connection string
-                     (e.g., "postgresql://user:pass@localhost:5432/neuromem")
         """
         self.conn = psycopg2.connect(conn_str)
         self._ensure_schema()
@@ -40,7 +40,7 @@ class PostgresBackend:
             
             # Create table
             cur.execute("""
-                CREATE TABLE IF NOT EXISTS memory_items (
+                CREATE TABLE IF NOT EXISTS user_memories (
                     id UUID PRIMARY KEY,
                     user_id UUID NOT NULL,
                     content TEXT NOT NULL,
@@ -61,27 +61,27 @@ class PostgresBackend:
             # Create indexes
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_memory_user 
-                ON memory_items(user_id);
+                ON user_memories(user_id);
             """)
             
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_memory_type 
-                ON memory_items(memory_type);
+                ON user_memories(memory_type);
             """)
             
             cur.execute("""
                 CREATE INDEX IF NOT EXISTS idx_memory_embedding 
-                ON memory_items USING ivfflat (embedding vector_cosine_ops)
+                ON user_memories USING ivfflat (embedding vector_cosine_ops)
                 WITH (lists = 100);
             """)
             
             self.conn.commit()
-    
+            
     def upsert(self, item: MemoryItem) -> None:
         """Insert or update a memory item."""
         with self.conn.cursor() as cur:
             cur.execute("""
-                INSERT INTO memory_items 
+                INSERT INTO user_memories 
                 (id, user_id, content, embedding, memory_type, salience, confidence,
                  created_at, last_accessed, decay_rate, reinforcement, inferred, editable, tags)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -89,7 +89,7 @@ class PostgresBackend:
                     content = EXCLUDED.content,
                     embedding = EXCLUDED.embedding,
                     last_accessed = EXCLUDED.last_accessed,
-                    reinforcement = memory_items.reinforcement + 1,
+                    reinforcement = user_memories.reinforcement + 1,
                     confidence = EXCLUDED.confidence,
                     salience = EXCLUDED.salience
             """, (
@@ -120,11 +120,15 @@ class PostgresBackend:
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Build query
             where_clauses = []
-            params = [json.dumps(embedding), k]
+            query_params = []
             
+            # 1. First placeholder: embedding for similarity calculation
+            query_params.append(json.dumps(embedding))
+            
+            # 2. Middle placeholders: WHERE clause
             if "user_id" in filters:
                 where_clauses.append("user_id = %s")
-                params.insert(0, filters["user_id"])
+                query_params.append(filters["user_id"])
             
             if "memory_type" in filters:
                 types = filters["memory_type"]
@@ -132,20 +136,25 @@ class PostgresBackend:
                     types = [types]
                 placeholders = ','.join(['%s'] * len(types))
                 where_clauses.append(f"memory_type IN ({placeholders})")
-                for t in types:
-                    params.insert(-1, t)
+                query_params.extend(types)
             
             where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+            
+            # 3. Third placeholder: embedding for ORDER BY
+            query_params.append(json.dumps(embedding))
+            
+            # 4. Fourth placeholder: LIMIT
+            query_params.append(k)
             
             # Execute query
             cur.execute(f"""
                 SELECT *,
                        1 - (embedding <=> %s::vector) AS similarity
-                FROM memory_items
+                FROM user_memories
                 WHERE {where_sql}
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s
-            """, params)
+            """, query_params)
             
             rows = cur.fetchall()
             
@@ -180,7 +189,7 @@ class PostgresBackend:
     def get_by_id(self, item_id: str) -> MemoryItem | None:
         """Get a memory by ID."""
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("SELECT * FROM memory_items WHERE id = %s", (item_id,))
+            cur.execute("SELECT * FROM user_memories WHERE id = %s", (item_id,))
             row = cur.fetchone()
             
             if not row:
@@ -207,7 +216,7 @@ class PostgresBackend:
         """Update an existing memory item."""
         with self.conn.cursor() as cur:
             cur.execute("""
-                UPDATE memory_items
+                UPDATE user_memories
                 SET content = %s,
                     embedding = %s,
                     last_accessed = %s,
@@ -227,7 +236,7 @@ class PostgresBackend:
     def delete(self, item_id: str) -> bool:
         """Delete a memory item."""
         with self.conn.cursor() as cur:
-            cur.execute("DELETE FROM memory_items WHERE id = %s", (item_id,))
+            cur.execute("DELETE FROM user_memories WHERE id = %s", (item_id,))
             self.conn.commit()
             return cur.rowcount > 0
     
@@ -241,14 +250,14 @@ class PostgresBackend:
         with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
             if memory_type:
                 cur.execute("""
-                    SELECT * FROM memory_items
+                    SELECT * FROM user_memories
                     WHERE user_id = %s AND memory_type = %s
                     ORDER BY last_accessed DESC
                     LIMIT %s
                 """, (user_id, memory_type, limit))
             else:
                 cur.execute("""
-                    SELECT * FROM memory_items
+                    SELECT * FROM user_memories
                     WHERE user_id = %s
                     ORDER BY last_accessed DESC
                     LIMIT %s

@@ -5,7 +5,7 @@ Stores user style, preferences, and behavioral patterns (how the user thinks).
 """
 
 import statistics
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.storage.base import MemoryBackend
 
@@ -39,6 +39,7 @@ class ProceduralMemory:
         if item.memory_type != MemoryType.PROCEDURAL:
             raise ValueError("Item must be procedural memory type")
         
+        # Write to vector store
         self.backend.upsert(item)
     
     def retrieve(
@@ -104,6 +105,7 @@ class ProceduralMemory:
         if item.user_id != self.user_id:
             raise ValueError("Cannot update memory for different user")
         
+        # Update vector store
         self.backend.update(item)
     
     def delete(self, memory_id: str) -> bool:
@@ -118,6 +120,7 @@ class ProceduralMemory:
         """
         item = self.get_by_id(memory_id)
         if item:
+            # Delete from vector store
             return self.backend.delete(memory_id)
         return False
     

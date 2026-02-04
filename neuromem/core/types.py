@@ -51,6 +51,7 @@ class MemoryItem:
     inferred: bool
     editable: bool
     tags: List[str] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
     
     def to_dict(self):
         """Convert to dictionary for storage."""
@@ -69,6 +70,7 @@ class MemoryItem:
             "inferred": self.inferred,
             "editable": self.editable,
             "tags": self.tags,
+            "metadata": self.metadata,
         }
     
     @classmethod
@@ -89,6 +91,7 @@ class MemoryItem:
             inferred=data["inferred"],
             editable=data["editable"],
             tags=data.get("tags", []),
+            metadata=data.get("metadata", {}),
         )
 
 

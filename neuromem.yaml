@@ -39,3 +39,39 @@ neuromem:
     
     # Minimum confidence threshold for retrieval
     min_confidence_threshold: 0.3
+
+  # Brain-inspired optimization settings
+  consolidation:
+    enabled: true
+    extract_facts: true
+    create_summaries: true
+    apply_forgetting: true
+    min_confidence: 0.7
+    decay_threshold: 0.3
+  
+  embeddings:
+    optimization_enabled: true
+    dimension_reduction:
+      enabled: true
+      target_dims: 512
+      age_threshold_days: 30
+    quantization:
+      enabled: true
+      dtype: int8
+    deduplication:
+      enabled: true
+      similarity_threshold: 0.95
+  
+  tagging:
+    auto_tag_enabled: true
+    max_tags_per_memory: 10
+    extract_entities: true
+    classify_intent: true
+    analyze_sentiment: true
+  
+  retrieval:
+    hybrid_enabled: true
+    recency_weight: 0.2
+    importance_weight: 0.3
+    similarity_weight: 0.5
+    recency_half_life_days: 30

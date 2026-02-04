@@ -19,9 +19,6 @@ class NeuroMemConfig:
             embedding: text-embedding-3-large
             consolidation_llm: gpt-4.1-mini
           storage:
-            database:
-              type: postgres
-              url: postgresql://user:pass@localhost:5432/neuromem
             vector_store:
               type: chroma
               collection: user_memory
@@ -48,6 +45,7 @@ class NeuroMemConfig:
         if "neuromem" not in self.raw:
             raise ValueError("Invalid configuration: missing 'neuromem' root key")
     
+    
     def model(self) -> Dict[str, Any]:
         """
         Get model configuration.
@@ -67,13 +65,59 @@ class NeuroMemConfig:
         return self.raw["neuromem"].get("storage", {})
     
     def memory(self) -> Dict[str, Any]:
-        """
-        Get memory system configuration.
-        
-        Returns:
-            Dictionary with memory behavior settings
-        """
+        """Get memory configuration."""
         return self.raw["neuromem"].get("memory", {})
+    
+    def consolidation(self) -> Dict[str, Any]:
+        """Get consolidation configuration."""
+        return self.raw["neuromem"].get("consolidation", {
+            "enabled": True,
+            "extract_facts": True,
+            "create_summaries": True,
+            "apply_forgetting": True,
+            "min_confidence": 0.7,
+            "decay_threshold": 0.3
+        })
+    
+    def embeddings(self) -> Dict[str, Any]:
+        """Get embedding optimization configuration."""
+        return self.raw["neuromem"].get("embeddings", {
+            "optimization_enabled": True,
+            "dimension_reduction": {
+                "enabled": True,
+                "target_dims": 512,
+                "age_threshold_days": 30
+            },
+            "quantization": {
+                "enabled": True,
+                "dtype": "int8"
+            },
+            "deduplication": {
+                "enabled": True,
+                "similarity_threshold": 0.95
+            }
+        })
+    
+    def tagging(self) -> Dict[str, Any]:
+        """Get auto-tagging configuration."""
+        return self.raw["neuromem"].get("tagging", {
+            "auto_tag_enabled": True,
+            "max_tags_per_memory": 10,
+            "extract_entities": True,
+            "classify_intent": True,
+            "analyze_sentiment": True
+        })
+    
+    def retrieval(self) -> Dict[str, Any]:
+        """Get retrieval configuration."""
+        return self.raw["neuromem"].get("retrieval", {
+            "hybrid_enabled": True,
+            "recency_weight": 0.2,
+            "importance_weight": 0.3,
+            "similarity_weight": 0.5,
+            "recency_half_life_days": 30
+        })
+
     
     def get(self, key: str, default: Any = None) -> Any:
         """
@@ -112,13 +156,9 @@ def create_default_config(path: str = "neuromem.yaml"):
                 "consolidation_llm": "gpt-4o-mini"
             },
             "storage": {
-                "database": {
-                    "type": "memory",
-                    "url": None
-                },
                 "vector_store": {
                     "type": "memory",
-                    "collection": "user_memory"
+                    "collection": "user_memories"
                 },
                 "cache": {
                     "type": "memory",

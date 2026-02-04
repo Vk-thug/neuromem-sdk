@@ -34,6 +34,9 @@ dependencies = [
 postgres = [
     "psycopg2-binary>=2.9.0",
 ]
+qdrant = [
+    "qdrant-client>=1.7.0",
+]
 openai = [
     "openai>=1.0.0",
 ]
@@ -48,6 +51,7 @@ all = [
     "openai>=1.0.0",
     "langchain>=0.1.0",
     "langgraph>=0.0.1",
+    "qdrant-client>=1.7.0",
 ]
 dev = [
     "pytest>=7.0.0",

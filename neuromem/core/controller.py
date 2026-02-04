@@ -39,7 +39,9 @@ class MemoryController:
         session: SessionMemory,
         retriever: RetrievalEngine,
         consolidator: Consolidator,
-        decay_engine: DecayEngine
+        decay_engine: DecayEngine,
+        embedding_model: str = "text-embedding-3-large",
+        config: Optional[Any] = None
     ):
         self.episodic = episodic
         self.semantic = semantic
@@ -48,6 +50,8 @@ class MemoryController:
         self.retriever = retriever
         self.consolidator = consolidator
         self.decay_engine = decay_engine
+        self.embedding_model = embedding_model
+        self.config = config
         
         # Cache for explanations
         self._retrieval_cache: Dict[str, Dict[str, Any]] = {}
@@ -74,33 +78,57 @@ class MemoryController:
         
         semantic_items, semantic_sims = self.semantic.retrieve(embedding, filters, k * 2)
         procedural_items, procedural_sims = self.procedural.retrieve(embedding, {}, k)
+
+        # Retrieve from episodic (recent interactions)
+        episodic_filters = {"memory_type": MemoryType.EPISODIC.value}
+        episodic_items, episodic_sims = self.episodic.retrieve(embedding, episodic_filters, k)
         
         # Combine and rank
-        all_items = semantic_items + procedural_items
-        all_sims = semantic_sims + procedural_sims
+        all_items = semantic_items + procedural_items + episodic_items
+        all_sims = semantic_sims + procedural_sims + episodic_sims
         
         if not all_items:
             return []
         
-        # Score and rank
-        ranked = self.retriever.rank(all_items, all_sims)
+        # Check if hybrid retrieval is enabled
+        use_hybrid = self.config and self.config.retrieval().get("hybrid_enabled", False)
         
-        # Apply inhibition for diversity
-        diverse = self.retriever.apply_inhibition(ranked)
-        
-        # Filter by confidence
-        filtered = self.retriever.filter_by_confidence(diverse)
-        
-        # Take top k
-        top_items = [item for item, score in filtered[:k]]
+        if use_hybrid:
+            # Use hybrid retrieval with multi-factor ranking
+            try:
+                from neuromem.memory.hybrid_retrieval import HybridRetrieval
+                
+                retrieval_config = self.config.retrieval()
+                hybrid_retriever = HybridRetrieval(
+                    recency_weight=retrieval_config.get("recency_weight", 0.2),
+                    importance_weight=retrieval_config.get("importance_weight", 0.3),
+                    similarity_weight=retrieval_config.get("similarity_weight", 0.5),
+                    recency_half_life_days=retrieval_config.get("recency_half_life_days", 30)
+                )
+                
+                top_items = hybrid_retriever.retrieve(embedding, all_items, all_sims, k=k)
+            except Exception as e:
+                print(f"Warning: Hybrid retrieval failed, falling back to basic: {e}")
+                # Fallback to basic retrieval
+                ranked = self.retriever.rank(all_items, all_sims)
+                diverse = self.retriever.apply_inhibition(ranked)
+                filtered = self.retriever.filter_by_confidence(diverse)
+                top_items = [item for item, score in filtered[:k]]
+        else:
+            # Use basic retrieval
+            ranked = self.retriever.rank(all_items, all_sims)
+            diverse = self.retriever.apply_inhibition(ranked)
+            filtered = self.retriever.filter_by_confidence(diverse)
+            top_items = [item for item, score in filtered[:k]]
         
         # Reinforce accessed memories
         for item in top_items:
             self.decay_engine.reinforce(item)
             # Cache retrieval info for explainability
+            item_idx = all_items.index(item) if item in all_items else 0
             self._retrieval_cache[item.id] = {
-                "similarity": all_sims[all_items.index(item)],
-                "score": next(score for i, score in filtered if i.id == item.id),
+                "similarity": all_sims[item_idx] if item_idx < len(all_sims) else 0.0,
+                "score": getattr(item, 'score', 0.0),
                 "retrieved_at": datetime.utcnow()
             }
         
@@ -117,7 +145,29 @@ class MemoryController:
         """
         # Create episodic memory for the interaction
         content = f"User: {user_input}\nAssistant: {assistant_output}"
-        embedding = get_embedding(content)
+        embedding = get_embedding(content, self.embedding_model)
+        
+        # Auto-tag the memory if enabled
+        tags = []
+        metadata = {}
+        
+        if self.config and self.config.tagging().get("auto_tag_enabled", False):
+            try:
+                from neuromem.utils.auto_tagger import AutoTagger
+                
+                tagger = AutoTagger(
+                    llm_model=self.config.model().get("consolidation_llm", "gpt-4o-mini")
+                )
+                enrichment = tagger.enrich_memory(content)
+                
+                tags = enrichment.get('tags', [])
+                metadata = {
+                    'intent': enrichment.get('intent'),
+                    'sentiment': enrichment.get('sentiment', {}).get('sentiment'),
+                    'entities': enrichment.get('entities', [])
+                }
+            except Exception as e:
+                print(f"Warning: Auto-tagging failed: {e}")
         
         memory_item = MemoryItem(
             id=str(uuid.uuid4()),
@@ -133,7 +183,8 @@ class MemoryController:
             reinforcement=1,
             inferred=False,  # Direct observation
             editable=True,
-            tags=[]
+            tags=tags,
+            metadata=metadata
         )
         
         self.episodic.store(memory_item)
@@ -167,9 +218,28 @@ class MemoryController:
         
         # Store promoted memories
         for memory in result.new_semantic_memories:
+            # Generate embedding if missing
+            if not memory.embedding:
+                try:
+                    memory.embedding = get_embedding(memory.content, self.embedding_model)
+                except Exception as e:
+                    print(f"Warning: Failed to generate embedding for semantic memory: {e}")
+                    continue
+            
+            # Ensure semantic type compliance
+            if memory.memory_type != MemoryType.SEMANTIC:
+                memory.memory_type = MemoryType.SEMANTIC
+                
             self.semantic.store(memory)
         
         for memory in result.new_procedural_memories:
+            # Generate embedding if missing
+            if not memory.embedding:
+                try:
+                    memory.embedding = get_embedding(memory.content, self.embedding_model)
+                except Exception as e:
+                    print(f"Warning: Failed to generate embedding for procedural memory: {e}")
+                    continue
             self.procedural.store(memory)
         
         # Apply decay to episodic memories
@@ -262,7 +332,7 @@ class MemoryController:
                     raise ValueError("This memory is not editable")
                 
                 memory.content = content
-                memory.embedding = get_embedding(content)
+                memory.embedding = get_embedding(content, self.embedding_model)
                 mem_type.update(memory)
                 return
         

@@ -4,7 +4,7 @@ Semantic memory for NeuroMem.
 Stores stable facts and knowledge about the user (what is true).
 """
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.storage.base import MemoryBackend
 
@@ -38,6 +38,7 @@ class SemanticMemory:
         if item.memory_type != MemoryType.SEMANTIC:
             raise ValueError("Item must be semantic memory type")
         
+        # Write to vector store
         self.backend.upsert(item)
     
     def retrieve(
@@ -106,6 +107,7 @@ class SemanticMemory:
         if item.user_id != self.user_id:
             raise ValueError("Cannot update memory for different user")
         
+        # Update vector store
         self.backend.update(item)
     
     def delete(self, memory_id: str) -> bool:
@@ -120,5 +122,6 @@ class SemanticMemory:
         """
         item = self.get_by_id(memory_id)
         if item:
+            # Delete from vector store
             return self.backend.delete(memory_id)
         return False

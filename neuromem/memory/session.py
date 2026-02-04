@@ -16,13 +16,17 @@ class SessionMemory:
     It's similar to working memory in the brain.
     """
     
-    def __init__(self, max_turns: int = 20):
+    def __init__(self, backend=None, user_id: str = None, max_turns: int = 20):
         """
         Initialize session memory.
         
         Args:
-            max_turns: Maximum number of conversation turns to keep
+            backend: Storage backend (e.g., PostgresBackend)
+            user_id: User ID for persistence
+            max_turns: Maximum number of conversation turns to keep in RAM
         """
+        self.backend = backend
+        self.user_id = user_id
         self.max_turns = max_turns
         self.turns: deque = deque(maxlen=max_turns)
     
@@ -38,6 +42,14 @@ class SessionMemory:
             "user": user_input,
             "assistant": assistant_output
         })
+        
+        # Persist to backend if available
+        if self.backend and self.user_id and hasattr(self.backend, 'add_history'):
+            try:
+                self.backend.add_history(self.user_id, "user", user_input)
+                self.backend.add_history(self.user_id, "assistant", assistant_output)
+            except Exception as e:
+                print(f"⚠️ Failed to persist session history: {e}")
     
     def get_context(self, last_n: int = None) -> List[Tuple[str, str]]:
         """

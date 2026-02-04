@@ -54,30 +54,64 @@ class NeuroMem:
         """
         from neuromem.storage.postgres import PostgresBackend
         from neuromem.storage.sqlite import SQLiteBackend
+        from neuromem.storage.qdrant import QdrantStorage
         from neuromem.storage.memory import InMemoryBackend
         
         config = NeuroMemConfig(config_path)
-        
-        # Initialize storage backend
         storage_config = config.storage()
-        db_type = storage_config.get("database", {}).get("type", "memory")
         
-        if db_type == "postgres":
-            backend = PostgresBackend(storage_config["database"]["url"])
-        elif db_type == "sqlite":
-            backend = SQLiteBackend(storage_config["database"]["url"])
+        # 1. Determine Vector Store Backend (Primary Storage)
+        vector_store_config = storage_config.get("vector_store", {})
+        vs_type = vector_store_config.get("type")
+        
+        # Backward compatibility / fallback to 'database' key
+        if not vs_type:
+            db_config = storage_config.get("database", {})
+            vs_type = db_config.get("type", "memory")
+            vs_params = db_config  # Use the whole dict as params if needed, or specific subkeys
+            # Normalize params for old style
+            if vs_type == "postgres":
+                 vs_params = {"url": db_config.get("url")}
+            elif vs_type == "sqlite":
+                 vs_params = {"url": db_config.get("url")}
+        else:
+             vs_params = vector_store_config.get("config", {})
+
+        # Initialize Backend
+        if vs_type == "qdrant":
+            # QdrantStorage(host=..., port=..., collection_name=..., path=...)
+            # Map config keys to QdrantStorage init args
+            backend = QdrantStorage(
+                host=vs_params.get("host", "localhost"),
+                port=vs_params.get("port", 6333),
+                collection_name=vs_params.get("collection_name", "neuromem"),
+                api_key=vs_params.get("api_key"),
+                path=vs_params.get("path"),
+                url=vs_params.get("url")
+            )
+        elif vs_type == "postgres":
+            url = vs_params.get("url")
+            backend = PostgresBackend(url)
+        elif vs_type == "sqlite":
+            url = vs_params.get("url")
+            backend = SQLiteBackend(url)
         else:
             backend = InMemoryBackend()
-        
+            
         # Initialize memory layers
         episodic = EpisodicMemory(backend, user_id)
         semantic = SemanticMemory(backend, user_id)
         procedural = ProceduralMemory(backend, user_id)
-        session = SessionMemory()
+        
+        # Initialize session (RAM only for now as history tracking is disabled)
+        session = SessionMemory(backend=None, user_id=user_id)
         
         # Initialize cognitive engines
         retriever = RetrievalEngine()
-        consolidator = Consolidator(config.model().get("consolidation_llm"))
+        consolidator = Consolidator(
+            llm_model=config.model().get("consolidation_llm"),
+            config=config.get("neuromem", {})
+        )
         decay_engine = DecayEngine(enabled=config.memory().get("decay_enabled", True))
         
         # Initialize controller
@@ -88,7 +122,9 @@ class NeuroMem:
             session=session,
             retriever=retriever,
             consolidator=consolidator,
-            decay_engine=decay_engine
+            decay_engine=decay_engine,
+            embedding_model=config.model().get("embedding", "text-embedding-3-large"),
+            config=config
         )
         
         return cls(user_id=user_id, controller=controller, config=config)

@@ -25,7 +25,11 @@ def get_embedding(
     try:
         from openai import OpenAI
         
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or "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")
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+        
+        client = OpenAI(api_key=api_key)
         
         response = client.embeddings.create(
             input=text,
@@ -80,7 +84,11 @@ def batch_get_embeddings(
     try:
         from openai import OpenAI
         
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY") or "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")
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable not set")
+        
+        client = OpenAI(api_key=api_key)
         
         response = client.embeddings.create(
             input=texts,
