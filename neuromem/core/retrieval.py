@@ -13,6 +13,7 @@ import math
 from datetime import datetime
 from typing import List, Tuple
 from neuromem.core.types import MemoryItem
+from neuromem import constants
 
 
 class RetrievalEngine:
@@ -30,27 +31,27 @@ class RetrievalEngine:
     
     def __init__(
         self,
-        similarity_weight: float = 0.45,
-        salience_weight: float = 0.20,
-        recency_weight: float = 0.15,
-        reinforcement_weight: float = 0.10,
-        confidence_weight: float = 0.10
+        similarity_weight: float = None,
+        salience_weight: float = None,
+        recency_weight: float = None,
+        reinforcement_weight: float = None,
+        confidence_weight: float = None
     ):
         """
         Initialize the retrieval engine with scoring weights.
-        
+
         Args:
-            similarity_weight: Weight for semantic similarity (default: 0.45)
-            salience_weight: Weight for memory importance (default: 0.20)
-            recency_weight: Weight for how recent the memory is (default: 0.15)
-            reinforcement_weight: Weight for repetition/access count (default: 0.10)
-            confidence_weight: Weight for confidence level (default: 0.10)
+            similarity_weight: Weight for semantic similarity (default from constants)
+            salience_weight: Weight for memory importance (default from constants)
+            recency_weight: Weight for how recent the memory is (default from constants)
+            reinforcement_weight: Weight for repetition/access count (default from constants)
+            confidence_weight: Weight for confidence level (default from constants)
         """
-        self.similarity_weight = similarity_weight
-        self.salience_weight = salience_weight
-        self.recency_weight = recency_weight
-        self.reinforcement_weight = reinforcement_weight
-        self.confidence_weight = confidence_weight
+        self.similarity_weight = similarity_weight or constants.DEFAULT_SIMILARITY_WEIGHT
+        self.salience_weight = salience_weight or constants.DEFAULT_SALIENCE_WEIGHT
+        self.recency_weight = recency_weight or constants.DEFAULT_RECENCY_WEIGHT
+        self.reinforcement_weight = reinforcement_weight or constants.DEFAULT_REINFORCEMENT_WEIGHT
+        self.confidence_weight = confidence_weight or constants.DEFAULT_CONFIDENCE_WEIGHT
     
     def score(self, item: MemoryItem, similarity: float) -> float:
         """
@@ -65,10 +66,13 @@ class RetrievalEngine:
         """
         # Calculate recency score (exponential decay)
         age_days = (datetime.utcnow() - item.last_accessed).days + 1
-        recency = math.exp(-0.1 * age_days)
-        
-        # Normalize reinforcement (cap at 10 accesses for scoring)
-        reinforcement_normalized = min(item.reinforcement / 10.0, 1.0)
+        recency = math.exp(-constants.DEFAULT_RECENCY_DECAY_LAMBDA * age_days)
+
+        # Normalize reinforcement (cap at configured max for scoring)
+        reinforcement_normalized = min(
+            item.reinforcement / constants.DEFAULT_MAX_REINFORCEMENT_FOR_SCORING,
+            1.0
+        )
         
         # Composite score
         score = (
@@ -109,23 +113,26 @@ class RetrievalEngine:
     def apply_inhibition(
         self,
         ranked_items: List[Tuple[MemoryItem, float]],
-        diversity_threshold: float = 0.85
+        diversity_threshold: float = None
     ) -> List[Tuple[MemoryItem, float]]:
         """
         Apply competitive inhibition to prevent near-duplicate memories.
-        
+
         This mimics lateral inhibition in the brain, where similar neurons
         suppress each other to enhance signal diversity.
-        
+
         Args:
             ranked_items: List of (item, score) tuples
-            diversity_threshold: Similarity threshold for inhibition (default: 0.85)
-        
+            diversity_threshold: Similarity threshold for inhibition (default from constants)
+
         Returns:
             Filtered list with diverse memories
         """
         if not ranked_items:
             return []
+
+        if diversity_threshold is None:
+            diversity_threshold = constants.DEFAULT_DIVERSITY_THRESHOLD
         
         selected = [ranked_items[0]]  # Always keep the top result
         
@@ -165,18 +172,21 @@ class RetrievalEngine:
     def filter_by_confidence(
         self,
         items: List[Tuple[MemoryItem, float]],
-        min_confidence: float = 0.3
+        min_confidence: float = None
     ) -> List[Tuple[MemoryItem, float]]:
         """
         Filter out low-confidence memories.
-        
+
         Args:
             items: List of (item, score) tuples
-            min_confidence: Minimum confidence threshold
-        
+            min_confidence: Minimum confidence threshold (default from constants)
+
         Returns:
             Filtered list
         """
+        if min_confidence is None:
+            min_confidence = constants.DEFAULT_MIN_CONFIDENCE_THRESHOLD
+
         return [
             (item, score)
             for item, score in items
