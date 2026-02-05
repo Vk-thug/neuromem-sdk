@@ -126,8 +126,14 @@ def get_embedding(
         1536
     """
     # Validate text
-    if not text or not isinstance(text, str):
-        raise ValueError(f"text must be a non-empty string, got: {type(text)}")
+    if not isinstance(text, str):
+        raise ValueError(f"text must be a string, got: {type(text)}")
+
+    if not text or not text.strip():
+        # For empty or whitespace-only queries, return a zero vector
+        # This allows retrieval with empty queries (returns general context)
+        logger.debug("Empty text provided for embedding, returning zero vector")
+        return [0.0] * 1536
 
     if len(text) > 100000:
         logger.warning(
