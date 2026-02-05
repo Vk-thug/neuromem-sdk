@@ -52,15 +52,15 @@ class IngestWorker(BaseWorker):
                 self.metrics.record('task.duration', duration_ms, {'type': 'observe'})
 
                 # Log success with context
-                logger.info(
-                    "Observe task processed successfully",
-                    extra={
-                        'task_id': task.data.get('task_id'),
-                        'user_id': task.data.get('user_id'),
-                        'duration_ms': duration_ms,
-                        'retry_count': retry_count
-                    }
-                )
+                # logger.info(
+                #     "Observe task processed successfully",
+                #     extra={
+                #         'task_id': task.data.get('task_id'),
+                #         'user_id': task.data.get('user_id'),
+                #         'duration_ms': duration_ms,
+                #         'retry_count': retry_count
+                #     }
+                # )
                 return  # Success
 
             except Exception as e:

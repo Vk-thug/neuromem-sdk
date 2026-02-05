@@ -119,7 +119,8 @@ def create_demo_agent(
     # Use a hardcoded UUID to ensure memory persistence across runs
     # This is necessary because UserManager is ephemeral (in-memory only)
     # Valid UUID v4 constant
-    HARDCODED_UUID = "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    # HARDCODED_UUID = "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    HARDCODED_UUID = "a3c9f2b4-8e61-4d92-9f3c-1a7b4d6e90ab"
     
     user = User(
         user_id=HARDCODED_UUID,
