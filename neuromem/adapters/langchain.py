@@ -33,11 +33,23 @@ class NeuroMemRunnable(Runnable):
         """Retrieve memories and add to input."""
         # Extract query from input
         query = input.get("input", input.get("question", ""))
-        
+
+        # If no query text, try to extract from messages
+        if not query and "messages" in input and isinstance(input["messages"], list):
+            for msg in reversed(input["messages"]):
+                if hasattr(msg, "content") and isinstance(msg.content, str) and msg.content.strip():
+                    query = msg.content
+                    break
+
         # Retrieve memories
         try:
-            memories = self.neuromem.retrieve(query=query, task_type="chat", k=self.k)
-            context = "\n".join([f"- {m.content}" for m in memories])
+            if query and query.strip():
+                memories = self.neuromem.retrieve(query=query, task_type="chat", k=self.k)
+                context = "\n".join([f"- {m.content}" for m in memories])
+            else:
+                # No query provided, skip retrieval
+                memories = []
+                context = ""
             # if context:
             #     print(f"\n🧠 Retrieved Context:\n{context}\n")
         except Exception as e:
@@ -67,6 +79,7 @@ class NeuroMemRunnable(Runnable):
     
     async def ainvoke(self, input: Dict[str, Any], config: Optional[Dict] = None) -> Dict[str, Any]:
         """Async version - currently same as sync (Phase 2+ workers handle async)."""
+        # Reuse sync implementation since NeuroMem already handles async via workers
         return self.invoke(input, config)
 
 
@@ -91,7 +104,9 @@ class NeuroMemChatMessageHistory(BaseChatMessageHistory):
     def messages(self) -> List[BaseMessage]:
         """Retrieve messages from memory."""
         try:
-            memories = self.neuromem.retrieve(query="", task_type="chat", k=self.k)
+            # Use the list() method to get all recent memories instead of retrieve with empty query
+            from neuromem.core.types import MemoryType
+            memories = self.neuromem.list(memory_type=MemoryType.EPISODIC.value, limit=self.k)
             messages = []
             for m in memories:
                 # Parse "User: X\nAssistant: Y" format
