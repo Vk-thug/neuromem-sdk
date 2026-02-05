@@ -10,6 +10,10 @@ from datetime import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from neuromem.core.types import MemoryItem, MemoryType
+from neuromem.utils.validation import validate_filters
+from neuromem.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class PostgresBackend:
@@ -133,22 +137,35 @@ class PostgresBackend:
         filters: Dict[str, Any],
         k: int
     ) -> Tuple[List[MemoryItem], List[float]]:
-        """Query for similar memories using pgvector."""
+        """
+        Query for similar memories using pgvector.
+
+        Args:
+            embedding: Query embedding vector
+            filters: Filter dictionary (validated for SQL injection prevention)
+            k: Number of results to return
+
+        Returns:
+            Tuple of (memory items, similarity scores)
+        """
+        # Validate filters to prevent SQL injection
+        filters = validate_filters(filters)
+
         conn = self._get_conn()
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 # Build query
                 where_clauses = []
                 query_params = []
-                
+
                 # 1. First placeholder: embedding for similarity calculation
                 query_params.append(json.dumps(embedding))
-                
+
                 # 2. Middle placeholders: WHERE clause
                 if "user_id" in filters:
                     where_clauses.append("user_id = %s")
                     query_params.append(filters["user_id"])
-                
+
                 if "memory_type" in filters:
                     types = filters["memory_type"]
                     if isinstance(types, str):

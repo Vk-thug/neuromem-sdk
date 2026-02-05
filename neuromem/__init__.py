@@ -290,37 +290,6 @@ class NeuroMem:
         if hasattr(self.controller, 'episodic') and hasattr(self.controller.episodic, 'backend'):
             if hasattr(self.controller.episodic.backend, 'close'):
                 self.controller.episodic.backend.close()
-    
-    @classmethod
-    def for_langchain(cls, user_id: str, config_path: str = "neuromem.yaml"):
-        """
-        Create a NeuroMem instance optimized for LangChain integration.
-        
-        Args:
-            user_id: User ID
-            config_path: Path to configuration file
-        
-        Returns:
-            NeuroMem instance with LangChain adapter
-        """
-        from neuromem.adapters.langchain import LangChainMemoryAdapter
-        
-        memory = cls.from_config(config_path, user_id)
-        return LangChainMemoryAdapter(memory)
-    
-    @classmethod
-    def for_langgraph(cls, user_id: str, config_path: str = "neuromem.yaml"):
-        """
-        Create a NeuroMem instance optimized for LangGraph integration.
-        
-        Args:
-            user_id: User ID
-            config_path: Path to configuration file
-        
-        Returns:
-            NeuroMem instance
-        """
-        return cls.from_config(config_path, user_id)
 
 
 __all__ = [
@@ -341,4 +310,4 @@ __all__ = [
     "MemoryBackend",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
