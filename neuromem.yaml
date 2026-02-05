@@ -75,3 +75,22 @@ neuromem:
     importance_weight: 0.3
     similarity_weight: 0.5
     recency_half_life_days: 30
+
+  # Phase 2+: Async & Proactive Intelligence
+  async:
+    enabled: true
+    critical_queue_size: 1000
+    high_queue_size: 500
+    medium_queue_size: 100
+    low_queue_size: 50
+    background_queue_size: 10
+    salience_threshold: 0.7  # Never drop tasks above this salience
+  
+  proactive:
+    auto_consolidate_threshold: 10  # Consolidate every N episodic memories
+    consolidation_interval_minutes: 60  # Or every N minutes
+    optimization_interval_hours: 24  # Re-embed optimization daily
+    decay_interval_hours: 168  # Apply decay weekly
+    reconsolidation_enabled: true
+    min_retrieval_for_reconsolidation: 3
+    context_similarity_threshold: 0.8

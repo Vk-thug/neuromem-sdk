@@ -1,164 +1,350 @@
 """
-Minimal Demo: NeuroMem + LangChain with Automatic Memory
+Demo Agent using LangChain's create_agent with NeuroMem integration.
 
-The LangChain adapter handles EVERYTHING automatically:
-- Pre-processor: Retrieves memories and adds to system prompt
-- Post-processor: Stores conversations after LLM response
-
-No manual memory operations needed!
-
-Requirements:
-    pip install langchain langchain-openai
-    Set OPENAI_API_KEY in environment
+This example demonstrates:
+1. Using ChatOpenAI/ChatAnthropic for LLM initialization
+2. Creating an agent with create_agent
+3. Integrating NeuroMem for memory management
+4. Tool calling and conversation flow
 """
 
 import os
-import sys
+from typing import Annotated
+from dotenv import load_dotenv
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from neuromem import NeuroMem, UserManager
-from neuromem.adapters.langchain import NeuroMemLangChain
+# LangChain imports
 from langchain_openai import ChatOpenAI
-from datetime import datetime
+from langchain_anthropic import ChatAnthropic
+from langchain.agents import create_agent
+from langchain.tools import tool
+from langchain.messages import HumanMessage, AIMessage
+
+# NeuroMem imports
+from neuromem import NeuroMem
+from neuromem.adapters.langchain import add_memory
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Load environment variables
+load_dotenv()
 
 
-def main():
-    """Run minimal demo with automatic memory handling."""
+# ============================================================================
+# Define Tools
+# ============================================================================
+
+@tool
+def search_web(query: str) -> str:
+    """Search the web for information."""
+    # Simulated web search
+    return f"Search results for '{query}': Found relevant information about {query}."
+
+
+@tool
+def get_weather(location: str) -> str:
+    """Get current weather for a location."""
+    # Simulated weather API
+    return f"Weather in {location}: Sunny, 72°F"
+
+
+@tool
+def calculate(expression: str) -> str:
+    """Calculate a mathematical expression."""
+    try:
+        result = eval(expression)
+        return f"Result: {result}"
+    except Exception as e:
+        return f"Error calculating: {str(e)}"
+
+
+# ============================================================================
+# Initialize Models
+# ============================================================================
+
+def get_chat_model(provider: str = "openai", model_name: str = None):
+    """
+    Initialize chat model based on provider.
     
-    print("=" * 60)
-    print("🧠 NeuroMem + LangChain: Automatic Memory Demo")
-    print("=" * 60)
-    print("\nThe adapter automatically:")
-    print("  ✅ Retrieves memories before LLM call")
-    print("  ✅ Adds them to system prompt")
-    print("  ✅ Stores conversations after LLM response")
-    print()
+    Args:
+        provider: "openai" or "anthropic"
+        model_name: Specific model name (optional)
     
-    # 1. Create user
-    user = UserManager.create(
-        external_id=f"demo_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    Returns:
+        Initialized chat model
+    """
+    if provider == "openai":
+        return ChatOpenAI(
+            model=model_name or "gpt-4o-mini",
+            temperature=0.7,
+            max_tokens=1000,
+            timeout=30,
+        )
+    elif provider == "anthropic":
+        return ChatAnthropic(
+            model=model_name or "claude-3-5-sonnet-20241022",
+            temperature=0.7,
+            max_tokens=1000,
+            timeout=30,
+        )
+    else:
+        raise ValueError(f"Unsupported provider: {provider}")
+
+
+# ============================================================================
+# Create Agent with NeuroMem
+# ============================================================================
+
+def create_demo_agent(
+    user_id: str,
+    provider: str = "openai",
+    model_name: str = None
+):
+    """
+    Create an agent with NeuroMem memory integration.
+    
+    Args:
+        user_id: User identifier for memory
+        provider: LLM provider ("openai" or "anthropic")
+        model_name: Specific model name
+    
+    Returns:
+        Agent with memory
+    """
+    # 1. Create or get user (required for Postgres UUID constraint)
+    from neuromem.user import UserManager, User
+    
+    print(f"👤 Creating/getting user: {user_id}")
+    
+    # Use a hardcoded UUID to ensure memory persistence across runs
+    # This is necessary because UserManager is ephemeral (in-memory only)
+    # Valid UUID v4 constant
+    HARDCODED_UUID = "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    
+    user = User(
+        user_id=HARDCODED_UUID,
+        external_id=user_id,
+        metadata={"name": user_id}
     )
-    print(f"✅ User: {user.id}")
     
-    # 2. Initialize NeuroMem
+    # Inject into UserManager cache just in case other components check it
+    # accessing private members as a pragmatic workaround for the demo
+    UserManager._users[HARDCODED_UUID] = user
+    UserManager._external_id_index[user_id] = HARDCODED_UUID
+    
+    print(f"   ✅ Using Hardcoded User ID: {user.id}")
+    
+    # 2. Initialize NeuroMem with config from examples directory
+    print(f"🧠 Initializing NeuroMem for user: {user.id}")
+    import os
     config_path = os.path.join(os.path.dirname(__file__), "neuromem.yaml")
     memory = NeuroMem.from_config(config_path, user_id=user.id)
-    print("✅ NeuroMem initialized")
     
-    # 3. Create LangChain adapter (handles everything automatically)
-    memory_adapter = NeuroMemLangChain(memory, k=5)
-    print("✅ Memory adapter created")
+    # 2. Initialize chat model
+    print(f"🤖 Initializing {provider} model...")
+    model = get_chat_model(provider, model_name)
     
-    # 4. Initialize LLM
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("\n❌ OPENAI_API_KEY not set!")
-        print("Set it with: export OPENAI_API_KEY=your_key_here")
-        return
+    # 3. Define tools
+    tools = [search_web, get_weather, calculate]
     
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
-    print("✅ LLM initialized\n")
+    # 4. Create agent with create_agent
+    print("🔧 Creating agent with tools...")
+    agent = create_agent(
+        model=model,
+        tools=tools,
+        system_prompt="""You are a helpful AI assistant with specific knowledge about the user.
+
+### Instructions
+1. You have access to facts about the user from previous conversations (provided in the conversation history). Use this information to personalize your responses.
+2. If the user asks about themselves (e.g., "What is my name?"), check the history for context FIRST.
+3. If the answer is in the conversation context, state it confidently.
+4. Use tools for external information (weather, search, math).
+5. Be concise, natural, and helpful.
+"""
+    )
     
-    # 6. Interactive chat
-    print("=" * 60)
-    print("💬 Chat (type 'quit' to exit)")
-    print("=" * 60)
+    # 5. Add memory to the agent
+    print("💾 Adding NeuroMem integration...")
+    agent_with_memory = add_memory(agent, memory)
     
-    turn = 0
+    return agent_with_memory, memory
+
+
+# ============================================================================
+# Demo Conversation
+# ============================================================================
+
+def run_demo_conversation():
+    """Run a demo conversation with the agent."""
     
+    print("\n" + "="*70)
+    print("🎯 NeuroMem + LangChain Agent Demo")
+    print("="*70 + "\n")
+    
+    # Choose provider (can be configured via env var)
+    provider = os.getenv("LLM_PROVIDER", "openai")
+    model_name = os.getenv("MODEL_NAME", None)
+    user_id = "demo_user_001"
+    
+    # Create agent
+    agent, memory = create_demo_agent(
+        user_id=user_id,
+        provider=provider,
+        model_name=model_name
+    )
+    
+    print(f"\n✅ Agent ready! Using {provider}\n")
+    
+    # Conversation 1: Introduction
+    print("👤 User: Hi! My name is Alice and I love hiking.")
+    print("🤖 Assistant: ", end="", flush=True)
+    
+    response1 = agent.invoke({
+        "messages": [HumanMessage(content="Hi! My name is Alice and I love hiking.")]
+    })
+    
+    print(response1["messages"][-1].content)
+    
+    # Conversation 2: Ask about weather
+    print("\n👤 User: What's the weather like in San Francisco?")
+    print("🤖 Assistant: ", end="", flush=True)
+    
+    response2 = agent.invoke({
+        "messages": [HumanMessage(content="What's the weather like in San Francisco?")]
+    })
+    
+    print(response2["messages"][-1].content)
+    
+    # Conversation 3: Test memory recall
+    print("\n👤 User: Do you remember my name and what I like?")
+    print("🤖 Assistant: ", end="", flush=True)
+    
+    response3 = agent.invoke({
+        "messages": [HumanMessage(content="Do you remember my name and what I like?")]
+    })
+    
+    print(response3["messages"][-1].content)
+    
+    # Conversation 4: Use calculation tool
+    print("\n👤 User: Can you calculate 15 * 24 + 100?")
+    print("🤖 Assistant: ", end="", flush=True)
+    
+    response4 = agent.invoke({
+        "messages": [HumanMessage(content="Can you calculate 15 * 24 + 100?")]
+    })
+    
+    print(response4["messages"][-1].content)
+    
+    
+    # Wait for async workers to process
+    print("\n⏳ Waiting for async workers to persist memories (3 seconds)...")
+    import time
+    time.sleep(3)
+    
+    # Show memory stats
+    print("\n" + "="*70)
+    print("📊 Memory Statistics")
+    print("="*70)
+    # Get user_id from memory's episodic backend
+    if hasattr(memory, 'controller') and hasattr(memory.controller, 'episodic'):
+        user_id_display = memory.controller.episodic.user_id if hasattr(memory.controller.episodic, 'user_id') else "N/A"
+    else:
+        user_id_display = "N/A"
+    
+    print(f"User ID: {user_id_display}")
+    print(f"Provider: {provider}")
+    
+    # Note: memory here is the NeuroMem instance returned from create_demo_agent
+    if hasattr(memory, 'controller'):
+        print(f"Async enabled: {memory.controller.async_enabled}")
+        if memory.controller.metrics:
+            queued = memory.controller.metrics.counters.get('observe.queued', 0)
+            created_count = 0
+            # Count all memory.created metrics
+            for key, value in memory.controller.metrics.counters.items():
+                if 'memory.created' in key:
+                    created_count += value
+            print(f"Observations queued: {queued}")
+            print(f"Memories created: {created_count}")
+    else:
+        print("Memory adapter active (async processing in background)")
+    
+    print("\n✅ Demo completed!")
+
+
+# ============================================================================
+# Interactive Mode
+# ============================================================================
+
+def run_interactive_mode():
+    """Run the agent in interactive mode."""
+    
+    print("\n" + "="*70)
+    print("🎯 NeuroMem + LangChain Agent - Interactive Mode")
+    print("="*70 + "\n")
+    
+    # Setup
+    provider = os.getenv("LLM_PROVIDER", "openai")
+    model_name = os.getenv("MODEL_NAME", None)
+    user_id = input("Enter your user ID (or press Enter for 'demo_user'): ").strip() or "demo_user"
+    
+    # Create agent
+    agent, memory = create_demo_agent(
+        user_id=user_id,
+        provider=provider,
+        model_name=model_name
+    )
+    
+    print(f"\n✅ Agent ready! Using {provider}")
+    print("Type 'quit' or 'exit' to end the conversation.\n")
+    
+    # Conversation loop
     while True:
         try:
-            user_input = input("\n👤 You: ").strip()
+            user_input = input("👤 You: ").strip()
             
             if not user_input:
                 continue
             
-            if user_input.lower() in ['quit', 'exit', 'q']:
+            if user_input.lower() in ['quit', 'exit', 'bye']:
                 print("\n👋 Goodbye!")
                 break
             
-            if user_input.lower() == '/consolidate':
-                print("\n🧠 Triggering consolidation...")
-                memory.consolidate()
-                print("✅ Consolidation complete!")
-                
-                # Show semantic memories
-                semantic = memory.list(memory_type="semantic", limit=10)
-                print(f"\n[📚 Semantic Knowledge ({len(semantic)})]")
-                for mem in semantic:
-                    print(f"  - {mem.content} (Conf: {mem.confidence:.2f})")
-                    if mem.metadata:
-                        print(f"    Type: {mem.metadata.get('fact_type')}")
-                continue
+            print("🤖 Assistant: ", end="", flush=True)
             
-            turn += 1
-            print(f"\n--- Turn {turn} ---")
+            response = agent.invoke({
+                "messages": [HumanMessage(content=user_input)]
+            })
             
-            # The adapter automatically:
-            # 1. Retrieves memories (pre-processor)
-            # 2. Adds to system prompt
-            # 3. Calls LLM
-            # 4. Stores conversation (post-processor)
+            print(response["messages"][-1].content)
+            print()
             
-            # Use lower-level retrieve method first to show what's happening
-            print("  🔍 Retrieving memories...")
-            retrieved = memory.retrieve(user_input, k=3)
-            if retrieved:
-                for i, mem in enumerate(retrieved):
-                    why = memory.explain(mem.id).get("why_used", {})
-                    print(f"     {i+1}. [{mem.memory_type.value.upper()}] (Score: {why.get('final_score', 'N/A'):.2f})")
-                    print(f"        - Sim: {why.get('similarity', 0):.2f} | Recency: 0.2 | Salience: {mem.salience:.2f}")
-                    if mem.tags:
-                        print(f"        - Tags: {mem.tags}")
-                    print(f"        - Content: {mem.content[:60]}...")
-            else:
-                print("     (No relevant memories found)")
-            
-            # Now run the chat
-            response = memory_adapter.chat(llm, user_input)
-            
-            print(f"\n Agent: {response}")
-            
-            # Show the newly stored memory
-            latest = memory.list(memory_type="episodic", limit=1)
-            if latest:
-                m = latest[0]
-                print(f"\n[💾 Memory stored]")
-                print(f"  - Tags: {m.tags}")
-                if m.metadata:
-                    print(f"  - Intent: {m.metadata.get('intent')}")
-                    print(f"  - Entities: {m.metadata.get('entities')}")
-        
         except KeyboardInterrupt:
             print("\n\n👋 Goodbye!")
             break
         except Exception as e:
-            print(f"\n❌ Error: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    # Show final stats
-    print("\n" + "=" * 60)
-    print("📊 Final Statistics")
-    print("=" * 60)
-    
-    episodic = memory.list(memory_type="episodic", limit=100)
-    semantic = memory.list(memory_type="semantic", limit=100)
-    
-    print(f"\nMemories stored:")
-    print(f"  - Episodic: {len(episodic)}")
-    print(f"  - Semantic: {len(semantic)}")
-    
-    if episodic:
-        print(f"\n📚 Recent conversations:")
-        for mem in episodic[:3]:
-            print(f"  - {mem.content[:80]}...")
-    
-    print("\n" + "=" * 60)
-    print("✅ Demo complete!")
-    print("=" * 60)
+            print(f"\n❌ Error: {str(e)}\n")
 
+
+# ============================================================================
+# Main
+# ============================================================================
 
 if __name__ == "__main__":
-    main()
+    import sys
+    
+    # Check for required API keys
+    if not os.getenv("OPENAI_API_KEY") and not os.getenv("ANTHROPIC_API_KEY"):
+        print("❌ Error: Please set OPENAI_API_KEY or ANTHROPIC_API_KEY")
+        print("\nExample:")
+        print("  export OPENAI_API_KEY='sk-...'")
+        print("  export LLM_PROVIDER='openai'")
+        sys.exit(1)
+    
+    # Run mode
+    mode = sys.argv[1] if len(sys.argv) > 1 else "demo"
+    
+    if mode == "interactive":
+        run_interactive_mode()
+    else:
+        run_demo_conversation()

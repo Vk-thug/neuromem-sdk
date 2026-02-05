@@ -40,6 +40,11 @@ class NeuroMem:
         self.config = config
         self._turn_count = 0
     
+    def __del__(self):
+        """Gracefully shutdown async workers on cleanup"""
+        if hasattr(self, 'controller') and self.controller:
+            self.controller.shutdown()
+    
     @classmethod
     def from_config(cls, config_path: str, user_id: str):
         """
@@ -128,6 +133,73 @@ class NeuroMem:
         )
         
         return cls(user_id=user_id, controller=controller, config=config)
+    
+    @classmethod
+    def for_langchain(cls, user_id: str, config_path: str = "neuromem.yaml"):
+        """
+        Quick initialization for LangChain integration.
+        
+        Args:
+            user_id: User ID
+            config_path: Path to neuromem.yaml
+        
+        Returns:
+            NeuroMem instance optimized for LangChain
+        
+        Usage:
+            from neuromem import NeuroMem
+            from neuromem.adapters.langchain import add_memory
+            
+            memory = NeuroMem.for_langchain(user_id="user_123")
+            chain_with_memory = add_memory(chain, memory)
+        """
+        return cls.from_config(config_path, user_id)
+    
+    @classmethod
+    def for_langgraph(cls, user_id: str, config_path: str = "neuromem.yaml"):
+        """
+        Quick initialization for LangGraph integration.
+        
+        Args:
+            user_id: User ID
+            config_path: Path to neuromem.yaml
+        
+        Returns:
+            NeuroMem instance optimized for LangGraph
+        
+        Usage:
+            from neuromem import NeuroMem
+            from neuromem.adapters.langgraph import with_memory
+            
+            memory = NeuroMem.for_langgraph(user_id="user_123")
+            app = with_memory(graph.compile(), memory)
+        """
+        return cls.from_config(config_path, user_id)
+    
+    @classmethod
+    def for_litellm(cls, user_id: str, config_path: str = "neuromem.yaml"):
+        """
+        Quick initialization for LiteLLM integration.
+        
+        Args:
+            user_id: User ID
+            config_path: Path to neuromem.yaml
+        
+        Returns:
+            NeuroMem instance optimized for LiteLLM
+        
+        Usage:
+            from neuromem import NeuroMem
+            from neuromem.adapters.litellm import completion_with_memory
+            
+            memory = NeuroMem.for_litellm(user_id="user_123")
+            response = completion_with_memory(
+                model="gpt-4",
+                messages=[...],
+                memory=memory
+            )
+        """
+        return cls.from_config(config_path, user_id)
     
     def retrieve(self, query: str, task_type: str = "chat", k: int = 8):
         """

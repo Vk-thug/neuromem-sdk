@@ -4,7 +4,7 @@ Core type definitions for the NeuroMem SDK.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Literal
+from typing import List, Literal, Optional
 from enum import Enum
 
 
@@ -14,6 +14,26 @@ class MemoryType(str, Enum):
     SEMANTIC = "semantic"
     PROCEDURAL = "procedural"
     AFFECTIVE = "affective"
+
+
+@dataclass
+class EmbeddingMetadata:
+    """Metadata about the embedding for ML versioning"""
+    model_name: str = "text-embedding-3-large"
+    model_version: str = "v1"
+    created_at: datetime = field(default_factory=datetime.now)
+    last_updated: datetime = field(default_factory=datetime.now)
+    dimension: int = 3072
+
+
+@dataclass
+class RetrievalStats:
+    """Statistics about memory retrieval performance"""
+    retrieval_count: int = 0
+    avg_similarity: float = 0.0
+    last_retrieved: Optional[datetime] = None
+    performance_score: float = 1.0  # 0-1, decays if not retrieved
+    total_similarity: float = 0.0  # For calculating average
 
 
 @dataclass
@@ -52,6 +72,9 @@ class MemoryItem:
     editable: bool
     tags: List[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
+    embedding_metadata: Optional[EmbeddingMetadata] = None
+    retrieval_stats: Optional[RetrievalStats] = None
+    strength: float = 1.0  # Salience-based memory strength
     
     def to_dict(self):
         """Convert to dictionary for storage."""

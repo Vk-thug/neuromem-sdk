@@ -1,49 +1,57 @@
 neuromem:
-  model:
-    embedding: text-embedding-3-small
-    consolidation_llm: gpt-4o-mini
-  storage:
-    vector_store:
-      type: postgres
-      config:
-        url: "postgresql://neondb_owner:npg_hPa2mOuWQfM6@ep-sweet-star-a15p66hk-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-  memory:
-    decay_enabled: true
-    consolidation_interval: 10
-    max_active_memories: 50
-  
-  # Brain-inspired optimization settings
+  async:
+    background_queue_size: 10
+    critical_queue_size: 1000
+    enabled: true
+    high_queue_size: 500
+    low_queue_size: 50
+    medium_queue_size: 100
+    salience_threshold: 0.7
   consolidation:
+    apply_forgetting: true
+    create_summaries: true
+    decay_threshold: 0.3
     enabled: true
     extract_facts: true
-    create_summaries: true
-    apply_forgetting: true
     min_confidence: 0.7
-    decay_threshold: 0.3
-  
   embeddings:
-    optimization_enabled: true
-    dimension_reduction:
-      enabled: true
-      target_dims: 512
-      age_threshold_days: 30
-    quantization:
-      enabled: true
-      dtype: int8
     deduplication:
       enabled: true
       similarity_threshold: 0.95
-  
-  tagging:
-    auto_tag_enabled: true
-    max_tags_per_memory: 10
-    extract_entities: true
-    classify_intent: true
-    analyze_sentiment: true
-  
+    dimension_reduction:
+      age_threshold_days: 30
+      enabled: true
+      target_dims: 512
+    optimization_enabled: true
+    quantization:
+      dtype: int8
+      enabled: true
+  memory:
+    consolidation_interval: 10
+    decay_enabled: true
+    max_active_memories: 50
+  model:
+    consolidation_llm: gpt-4o-mini
+    embedding: text-embedding-3-small
+  proactive:
+    batch_size: 10
+    check_interval_seconds: 300
+    enabled: true
+    min_episodic_count: 5
   retrieval:
     hybrid_enabled: true
-    recency_weight: 0.2
     importance_weight: 0.3
-    similarity_weight: 0.5
     recency_half_life_days: 30
+    recency_weight: 0.2
+    similarity_weight: 0.5
+  storage:
+    vector_store:
+      config:
+        url: postgresql://neondb_owner:npg_hPa2mOuWQfM6@ep-sweet-star-a15p66hk-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+      type: postgres
+  tagging:
+    analyze_sentiment: true
+    auto_tag_enabled: true
+    classify_intent: true
+    extract_entities: true
+    max_tags_per_memory: 10

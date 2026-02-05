@@ -18,6 +18,14 @@ from neuromem.memory.procedural import ProceduralMemory
 from neuromem.memory.session import SessionMemory
 from neuromem.utils.embeddings import get_embedding
 
+# Phase 2+ imports
+from neuromem.core.task_scheduler import PriorityTaskScheduler
+from neuromem.core.task_types import Task, TaskType, TaskPriority
+from neuromem.core.observability.metrics import MetricsCollector
+from neuromem.core.workers.ingest_worker import IngestWorker
+from neuromem.core.workers.maintenance_worker import MaintenanceWorker
+from neuromem.core.policies.reconsolidation import ReconsolidationPolicy
+
 
 class MemoryController:
     """
@@ -51,10 +59,54 @@ class MemoryController:
         self.consolidator = consolidator
         self.decay_engine = decay_engine
         self.embedding_model = embedding_model
-        self.config = config
+        self.config = config or {}
+        self.auto_tagger = None  # Set by NeuroMem if enabled
         
         # Cache for explanations
         self._retrieval_cache: Dict[str, Dict[str, Any]] = {}
+        
+        # Phase 2+: Async infrastructure
+        self.async_enabled = self.config.get('async', {}).get('enabled', True)
+        if self.async_enabled:
+            self.scheduler = PriorityTaskScheduler(self.config.get('async', {}))
+            self.metrics = MetricsCollector()
+            self.reconsolidation_policy = ReconsolidationPolicy(self.config.get('proactive', {}))
+            
+            # Start workers
+            self.ingest_worker = IngestWorker(self.scheduler, self.metrics, self, self.config)
+            self.maintenance_worker = MaintenanceWorker(self.scheduler, self.metrics, self, self.config)
+            self.ingest_worker.start()
+            self.maintenance_worker.start()
+        else:
+            self.scheduler = None
+            self.metrics = None
+            self.reconsolidation_policy = None
+            self.ingest_worker = None
+            self.maintenance_worker = None
+            
+        # Initialize AutoTagger if enabled
+        if self.config and self.config.tagging().get("auto_tag_enabled", False):
+            try:
+                from neuromem.utils.auto_tagger import AutoTagger
+                self.auto_tagger = AutoTagger(
+                    llm_model=self.config.model().get("consolidation_llm", "gpt-4o-mini")
+                )
+            except Exception as e:
+                print(f"Warning: Failed to initialize AutoTagger: {e}")
+                self.auto_tagger = None
+    
+    def shutdown(self, timeout: float = 5.0):
+        """
+        Gracefully shutdown async workers.
+        
+        Args:
+            timeout: Max time to wait for workers to finish
+        """
+        if self.async_enabled:
+            if self.ingest_worker:
+                self.ingest_worker.stop(timeout=timeout)
+            if self.maintenance_worker:
+                self.maintenance_worker.stop(timeout=timeout)
     
     def retrieve(
         self,
@@ -138,13 +190,39 @@ class MemoryController:
         """
         Observe and store a user-assistant interaction.
         
+        Phase 2+: When async is enabled, this queues the task for background
+        processing and returns immediately (~1ms latency).
+        
         Args:
             user_input: What the user said
             assistant_output: What the assistant responded
             user_id: User ID
         """
+        if self.async_enabled:
+            # Async path: queue task and return immediately
+            task = Task(
+                task_type=TaskType.OBSERVE,
+                priority=TaskPriority.CRITICAL,
+                data={
+                    'user_input': user_input,
+                    'assistant_output': assistant_output,
+                    'user_id': user_id
+                },
+                created_at=datetime.now(),
+                salience=self._calculate_salience(user_input, assistant_output),
+                trace_id=None
+            )
+            self.scheduler.enqueue(task)
+            if self.metrics:
+                self.metrics.increment('observe.queued')
+        else:
+            # Synchronous fallback (original behavior)
+            self._observe_sync(user_input, assistant_output, user_id)
+    
+    def _observe_sync(self, user_input: str, assistant_output: str, user_id: str):
+        """Synchronous observe implementation (original behavior)"""
         # Create episodic memory for the interaction
-        content = f"User: {user_input}\nAssistant: {assistant_output}"
+        content = f"User: {user_input}\\nAssistant: {assistant_output}"
         embedding = get_embedding(content, self.embedding_model)
         
         # Auto-tag the memory if enabled
