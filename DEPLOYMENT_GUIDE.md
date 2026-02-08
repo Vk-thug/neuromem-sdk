@@ -76,7 +76,7 @@ Documentation:
 Test Coverage: 60%+ (up from 10%)
 Production Readiness: 9.0/10 (up from 6.5/10)
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
+Co-Authored-By: Vikram Venkatesh Kumar <avikramastro@gmail.com>"
 ```
 
 ### 2. Create Git Tag
