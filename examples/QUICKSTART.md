@@ -106,14 +106,14 @@ agent = create_agent(
 
 ✅ Agent ready! Using openai
 
-👤 User: Hi! My name is Alice and I love hiking.
-🤖 Assistant: Hi Alice! It's great to meet you. Hiking is such a wonderful way...
+👤 User: Hi! My name is Charles and I love coding.
+🤖 Assistant: Hi Charles! It's great to meet you. Coding is such a wonderful way...
 
-👤 User: What's the weather like in San Francisco?
-🤖 Assistant: The weather in San Francisco is sunny with a temperature of 72°F.
+👤 User: What's the weather like in london?
+🤖 Assistant: The weather in London is sunny with a temperature of 72°F.
 
 👤 User: Do you remember my name and what I like?
-🤖 Assistant: Yes! Your name is Alice, and you mentioned that you love hiking...
+🤖 Assistant: Yes! Your name is Charles, and you mentioned that you love coding...
 
 📊 Memory Statistics
 ======================================================================
