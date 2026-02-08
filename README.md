@@ -573,7 +573,12 @@ python test_setup.py
 
 ## 📈 Roadmap
 
-### v0.2.0 (Beta) - Target: Q2 2026
+### v0.1.0 (Alpha) - Current Release
+- [x] Basic memory types (Episodic, Semantic)
+- [x] Retrieval engine
+- [x] Storage backends (Memory, SQLite, Postgres, Qdrant)
+
+### v0.1.0 (Beta) - Target: Q2 2026
 - [ ] Unit test coverage >80%
 - [ ] Performance optimization (parallel retrieval)
 - [ ] Comprehensive documentation

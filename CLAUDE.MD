@@ -1361,7 +1361,7 @@ Follow semantic versioning: **MAJOR.MINOR.PATCH**
 | Change Type | Version Bump | Example |
 |-------------|--------------|---------|
 | Bug fixes, no API changes | PATCH | 0.1.0 → 0.1.1 |
-| New features, backwards compatible | MINOR | 0.1.0 → 0.2.0 |
+| New features, backwards compatible | MINOR | 0.1.0 → 0.1.0 |
 | Breaking API changes | MAJOR | 0.9.0 → 1.0.0 |
 
 **Update Version**:
@@ -1428,7 +1428,7 @@ pip install -e ".[dev]"
    - Announce prominently in release notes
 
 2. **New Features**:
-   - Minor version bump (0.1.x → 0.2.0)
+   - Minor version bump (0.1.x → 0.1.0)
    - Update examples
    - Add to documentation
 

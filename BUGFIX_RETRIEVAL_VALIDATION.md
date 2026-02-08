@@ -278,4 +278,4 @@ The interactive mode now works correctly. Users can:
 
 **Fixed by**: Claude Sonnet 4.5
 **Date**: 2026-02-06
-**Version**: 0.2.0 (post-release hotfix)
+**Version**: 0.1.0 (post-release hotfix)

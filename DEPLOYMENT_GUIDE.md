@@ -1,6 +1,6 @@
-# NeuroMem SDK v0.2.0 - Deployment Guide
+# NeuroMem SDK v0.1.0 - Deployment Guide
 
-**Version**: 0.2.0 (Production Ready)
+**Version**: 0.1.0 (Production Ready)
 **Release Date**: 2026-02-05
 **Status**: ✅ Ready for Production Deployment
 
@@ -11,7 +11,7 @@
 ### ✅ Code Quality
 - [x] All 15 production improvements completed
 - [x] No critical bugs
-- [x] Version bumped to 0.2.0 in all files
+- [x] Version bumped to 0.1.0 in all files
 - [x] CHANGELOG.md updated
 - [x] README.md comprehensive
 
@@ -39,7 +39,7 @@ cd /Users/vikramvenkateshkumar/.claude-worktrees/neuromem-sdk/hungry-greider
 git add .
 
 # Create comprehensive commit
-git commit -m "Release v0.2.0 - Production Ready
+git commit -m "Release v0.1.0 - Production Ready
 
 Major improvements:
 - ✅ Parallel retrieval queries (3x speedup)
@@ -82,8 +82,8 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
 ### 2. Create Git Tag
 
 ```bash
-# Create annotated tag for v0.2.0
-git tag -a v0.2.0 -m "Release v0.2.0 - Production Ready
+# Create annotated tag for v0.1.0
+git tag -a v0.1.0 -m "Release v0.1.0 - Production Ready
 
 Major Features:
 - Parallel retrieval (3x speedup)
@@ -107,7 +107,7 @@ For detailed changes, see:
 "
 
 # Verify tag
-git tag -l -n9 v0.2.0
+git tag -l -n9 v0.1.0
 ```
 
 ### 3. Push to Remote
@@ -117,7 +117,7 @@ git tag -l -n9 v0.2.0
 git push origin hungry-greider
 
 # Push tag
-git push origin v0.2.0
+git push origin v0.1.0
 
 # Or push both at once
 git push origin hungry-greider --tags
@@ -161,8 +161,8 @@ python3 -m build
 # Verify build
 ls -lh dist/
 # Should see:
-# neuromem_sdk-0.2.0-py3-none-any.whl
-# neuromem-sdk-0.2.0.tar.gz
+# neuromem_sdk-0.1.0-py3-none-any.whl
+# neuromem-sdk-0.1.0.tar.gz
 ```
 
 ### Test on TestPyPI First (Recommended)
@@ -172,7 +172,7 @@ ls -lh dist/
 python3 -m twine upload --repository testpypi dist/*
 
 # Test installation
-pip install --index-url https://test.pypi.org/simple/ neuromem-sdk==0.2.0
+pip install --index-url https://test.pypi.org/simple/ neuromem-sdk==0.1.0
 
 # Run tests
 python test_setup.py
@@ -189,7 +189,7 @@ python3 -m twine upload dist/*
 open https://pypi.org/project/neuromem-sdk/
 
 # Test installation
-pip install neuromem-sdk==0.2.0
+pip install neuromem-sdk==0.1.0
 ```
 
 ---
@@ -204,11 +204,11 @@ python3 -m venv test_env
 source test_env/bin/activate
 
 # Install from PyPI
-pip install neuromem-sdk==0.2.0
+pip install neuromem-sdk==0.1.0
 
 # Verify installation
 python -c "import neuromem; print(neuromem.__version__)"
-# Should output: 0.2.0
+# Should output: 0.1.0
 
 # Run setup tests
 python -c "
@@ -287,13 +287,13 @@ EOF
 
 ### GitHub Release Notes
 
-**Title**: NeuroMem SDK v0.2.0 - Production Ready 🚀
+**Title**: NeuroMem SDK v0.1.0 - Production Ready 🚀
 
 **Body**:
 ```markdown
-# NeuroMem SDK v0.2.0 - Production Ready
+# NeuroMem SDK v0.1.0 - Production Ready
 
-We're excited to announce the release of NeuroMem SDK v0.2.0, our first production-ready release!
+We're excited to announce the release of NeuroMem SDK v0.1.0, our first production-ready release!
 
 ## 🎉 Highlights
 
@@ -347,12 +347,12 @@ print(health['status'])  # 'healthy'
 ## 🔧 Installation
 
 ```bash
-pip install neuromem-sdk==0.2.0
+pip install neuromem-sdk==0.1.0
 ```
 
 ## 📝 What's Changed
 
-**Full Changelog**: v0.1.0...v0.2.0
+**Full Changelog**: v0.1.0...v0.1.0
 
 See [CHANGELOG.md](./CHANGELOG.md) for complete details.
 
@@ -413,23 +413,23 @@ If issues are discovered after deployment:
 pip install neuromem-sdk==0.1.0
 
 # Or revert git tag
-git tag -d v0.2.0
-git push origin :refs/tags/v0.2.0
+git tag -d v0.1.0
+git push origin :refs/tags/v0.1.0
 ```
 
 ### 2. Hot Fix Release
 
 ```bash
 # Create hotfix branch
-git checkout -b hotfix/0.2.1 v0.2.0
+git checkout -b hotfix/0.1.1 v0.1.0
 
 # Fix issue
 # ... make changes ...
 
 # Commit and tag
 git commit -m "Fix: critical issue"
-git tag v0.2.1
-git push origin hotfix/0.2.1 --tags
+git tag v0.1.1
+git push origin hotfix/0.1.1 --tags
 ```
 
 ---
@@ -456,5 +456,5 @@ Release is successful if:
 
 **Release Manager**: Production Team
 **Release Date**: 2026-02-05
-**Version**: 0.2.0
+**Version**: 0.1.0
 **Status**: ✅ Ready to Deploy

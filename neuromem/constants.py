@@ -6,7 +6,7 @@ to improve maintainability and make tuning easier.
 """
 
 # Version
-VERSION = "0.2.0"
+VERSION = "0.1.0"
 
 # Memory Configuration Defaults
 DEFAULT_EPISODIC_CONFIDENCE = 0.9  # Direct observations have high confidence

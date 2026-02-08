@@ -1,0 +1,6 @@
+include README.md
+include LICENSE
+include neuromem.yaml
+include requirements.txt
+recursive-include examples *
+recursive-include tests *

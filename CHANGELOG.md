@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-02-05
+## [0.1.0] - 2026-02-05
 
 ### Added - Performance & Reliability
 - **Parallel retrieval queries** - 3x faster retrieval using ThreadPoolExecutor (controller.py)
@@ -141,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Deprecation Notices
 
-### Upcoming Changes in v0.2.0
+### Upcoming Changes in v0.1.0
 
 - `for_langchain()` will be deprecated in favor of `NeuroMem.from_config()` with explicit adapter
 - `observe()` will require explicit `user_id` parameter (currently inferred from instance)

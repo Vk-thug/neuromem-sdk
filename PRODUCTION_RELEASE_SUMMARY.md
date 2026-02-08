@@ -235,7 +235,7 @@ api_key = validate_api_key(os.getenv("OPENAI_API_KEY"), provider="OpenAI")
 
 ## 🎯 Release Readiness Status
 
-### ✅ Ready for Beta Release (v0.2.0)
+### ✅ Ready for Beta Release (v0.1.0)
 
 **Blockers Resolved**:
 - ✅ Duplicate methods fixed
@@ -277,7 +277,7 @@ api_key = validate_api_key(os.getenv("OPENAI_API_KEY"), provider="OpenAI")
 
 ## 🚀 Next Steps
 
-### Immediate (Before v0.2.0 Beta)
+### Immediate (Before v0.1.0 Beta)
 
 1. **Add Unit Tests** (P0 - 2-3 weeks)
    - Target: 80% coverage
@@ -293,7 +293,7 @@ api_key = validate_api_key(os.getenv("OPENAI_API_KEY"), provider="OpenAI")
    - Implement dead-letter queue
    - Add error logging with context
 
-### Short-term (v0.2.0 → v1.0.0, 2-3 months)
+### Short-term (v0.1.0 → v1.0.0, 2-3 months)
 
 4. **Health Check Endpoints** (P1 - 3 days)
    - Database connectivity
@@ -362,7 +362,7 @@ api_key = validate_api_key(os.getenv("OPENAI_API_KEY"), provider="OpenAI")
 3. ⏳ **Monitoring** - Health checks enable observability
 
 ### Recommendations
-1. **Ship Beta (v0.2.0) Now** - Critical issues resolved, ready for early adopters
+1. **Ship Beta (v0.1.0) Now** - Critical issues resolved, ready for early adopters
 2. **Focus on Testing** - Achieve 80% coverage before v1.0.0
 3. **Gather Feedback** - Beta users will reveal real-world issues
 4. **Iterate Quickly** - Fix bugs fast, release patches frequently
@@ -379,7 +379,7 @@ The NeuroMem SDK has been significantly improved for production readiness. All *
 - ✅ **Observable**: Structured logging for debugging
 - ✅ **Documented**: Comprehensive README and CHANGELOG
 
-**Recommendation**: Release as **Beta v0.2.0** immediately. Continue hardening toward **Production v1.0.0** over next 2-3 months.
+**Recommendation**: Release as **Beta v0.1.0** immediately. Continue hardening toward **Production v1.0.0** over next 2-3 months.
 
 ---
 
