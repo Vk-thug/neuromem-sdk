@@ -6,7 +6,7 @@ including database, workers, queues, and external APIs.
 """
 
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from neuromem.utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -39,7 +39,7 @@ def get_health_status(neuromem_instance) -> Dict[str, Any]:
     """
     health = {
         'status': HealthStatus.HEALTHY,
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'version': '0.1.0',
         'checks': {}
     }
@@ -364,7 +364,7 @@ def get_readiness_status(neuromem_instance) -> Dict[str, Any]:
 
     return {
         'ready': ready,
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'reasons': reasons if not ready else ["System ready"]
     }
 
@@ -382,5 +382,5 @@ def get_liveness_status(neuromem_instance) -> Dict[str, Any]:
     # Simple check - if we can execute this, we're alive
     return {
         'alive': True,
-        'timestamp': datetime.utcnow().isoformat()
+        'timestamp': datetime.now(timezone.utc).isoformat()
     }

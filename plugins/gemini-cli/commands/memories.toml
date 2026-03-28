@@ -1,0 +1,16 @@
+description = "List and browse all stored memories with optional type filter (episodic, semantic, procedural)"
+
+prompt = """Browse the user's stored memories.
+
+Type filter: {{args}}
+
+If a type was specified (episodic, semantic, or procedural):
+- Call `list_memories` with that memory_type and limit=30
+
+If no filter:
+- First call `get_stats` for an overview
+- Then call `list_memories` with limit=20
+
+Show results as a formatted list:
+- ID (first 8 chars), Content (truncated), Type, Confidence, Tags, Age
+- Mention total count and whether more exist"""

@@ -11,7 +11,7 @@ from neuromem.config import NeuroMemConfig
 from neuromem.user import UserManager
 from neuromem.storage.memory import InMemoryBackend
 from neuromem.core.types import MemoryItem, MemoryType
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 
@@ -78,8 +78,8 @@ def sample_memory_item(user_id, mock_embedding):
         memory_type=MemoryType.EPISODIC,
         salience=0.7,
         confidence=0.9,
-        created_at=datetime.utcnow(),
-        last_accessed=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
+        last_accessed=datetime.now(timezone.utc),
         decay_rate=0.05,
         reinforcement=1,
         inferred=False,
@@ -106,7 +106,11 @@ def mock_openai_client(monkeypatch):
     def mock_openai_init(*args, **kwargs):
         return mock_client
 
-    # Patch OpenAI client
-    monkeypatch.setattr("neuromem.utils.embeddings.OpenAI", mock_openai_init)
+    # Patch the internal API call function instead of OpenAI class
+    # (OpenAI is imported inside functions, not at module level)
+    monkeypatch.setattr(
+        "neuromem.utils.embeddings._call_openai_api",
+        lambda text, model, api_key: [0.1] * 1536,
+    )
 
     return mock_client

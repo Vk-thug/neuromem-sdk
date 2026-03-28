@@ -6,7 +6,7 @@ to improve maintainability and make tuning easier.
 """
 
 # Version
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 # Memory Configuration Defaults
 DEFAULT_EPISODIC_CONFIDENCE = 0.9  # Direct observations have high confidence
@@ -19,10 +19,12 @@ DEFAULT_RETRIEVAL_K = 8  # Default number of memories to retrieve
 DEFAULT_MAX_RETRIEVAL_K = 100  # Maximum allowed retrieval count
 
 # Retrieval Scoring Weights
-DEFAULT_SIMILARITY_WEIGHT = 0.45
-DEFAULT_SALIENCE_WEIGHT = 0.20
+# Salience is the strongest signal — first-person facts beat repeated junk.
+# Similarity matches content but can be fooled by similar phrasing.
+DEFAULT_SIMILARITY_WEIGHT = 0.35
+DEFAULT_SALIENCE_WEIGHT = 0.35
 DEFAULT_RECENCY_WEIGHT = 0.15
-DEFAULT_REINFORCEMENT_WEIGHT = 0.10
+DEFAULT_REINFORCEMENT_WEIGHT = 0.05
 DEFAULT_CONFIDENCE_WEIGHT = 0.10
 
 # Recency Calculation
@@ -34,9 +36,11 @@ DEFAULT_MAX_REINFORCEMENT_FOR_SCORING = 10  # Cap reinforcement at 10 accesses
 
 # Salience Calculation
 DEFAULT_BASE_SALIENCE = 0.5  # Base salience for all interactions
-SALIENCE_BOOST_QUESTION = 0.2  # Boost for questions
-SALIENCE_BOOST_LENGTH = 0.1  # Boost for long interactions (>100 chars)
+SALIENCE_BOOST_FIRST_PERSON = 0.35  # Boost for first-person factual statements ("I am", "My team")
 SALIENCE_BOOST_PREFERENCE = 0.2  # Boost for preference keywords
+SALIENCE_BOOST_LENGTH = 0.1  # Boost for long interactions (>100 chars)
+SALIENCE_BOOST_QUESTION = 0.05  # Mild boost for questions (less valuable than statements)
+SALIENCE_PENALTY_JUNK = 0.3  # Penalty for "I don't know" type responses
 
 # Content Validation
 MAX_CONTENT_LENGTH = 50000  # 50KB max content length
@@ -47,8 +51,11 @@ MAX_EMBEDDING_TEXT_LENGTH = 100000  # OpenAI limit
 # Confidence Filtering
 DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3
 
+# Keyword Boost (for proper nouns and named entities)
+DEFAULT_KEYWORD_BOOST = 0.2  # Boost for memories containing exact query keywords
+
 # Diversity/Inhibition
-DEFAULT_DIVERSITY_THRESHOLD = 0.85  # Similarity threshold for inhibition
+DEFAULT_DIVERSITY_THRESHOLD = 0.75  # Similarity threshold for inhibition (lower = more diverse results)
 
 # Memory Retention
 DEFAULT_EPISODIC_RETENTION_DAYS = 30
@@ -157,6 +164,24 @@ PREFERENCE_KEYWORDS = [
     "prefer", "like", "want", "need", "always", "never",
     "favorite", "hate", "love", "dislike", "usually", "typically"
 ]
+
+# Stop words for keyword matching (shared by controller._keyword_fallback and retrieval.boost_keyword_matches)
+RETRIEVAL_STOP_WORDS = frozenset({
+    "what", "who", "where", "when", "how", "is", "are", "do", "does",
+    "the", "a", "an", "my", "i", "me", "we", "our", "and", "or",
+    "for", "to", "in", "on", "at", "of", "use", "prefer", "about",
+    "did", "was", "were", "been", "have", "has", "with", "that", "this",
+})
+
+# Memory Links
+DEFAULT_LINK_SIMILARITY_THRESHOLD = 0.7
+MAX_AUTO_LINKS_PER_MEMORY = 5
+LINK_TYPES = ["derived_from", "contradicts", "reinforces", "related", "supersedes"]
+
+# Graph
+DEFAULT_GRAPH_BFS_MAX_DEPTH = 3
+DEFAULT_CONTEXT_EXPANSION_DEPTH = 1
+MAX_EXPANDED_CONTEXT_ITEMS = 3
 
 # HTTP Status Codes (for future API)
 HTTP_OK = 200

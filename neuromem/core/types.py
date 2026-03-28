@@ -119,6 +119,27 @@ class MemoryItem:
 
 
 @dataclass
+class MemoryLink:
+    """An explicit relationship between two memories."""
+    source_id: str
+    target_id: str
+    link_type: str  # "derived_from" | "contradicts" | "reinforces" | "related" | "supersedes"
+    strength: float  # 0.0-1.0
+    created_at: datetime
+    metadata: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        return {
+            "source_id": self.source_id,
+            "target_id": self.target_id,
+            "link_type": self.link_type,
+            "strength": self.strength,
+            "created_at": self.created_at.isoformat(),
+            "metadata": self.metadata,
+        }
+
+
+@dataclass
 class RetrievalContext:
     """Context for memory retrieval."""
     query: str

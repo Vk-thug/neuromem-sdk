@@ -11,9 +11,16 @@ Implements brain-inspired memory consolidation:
 import json
 import uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from neuromem.core.types import MemoryItem, MemoryType
-import openai
+from neuromem.utils.time import ensure_utc
+
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    openai = None  # type: ignore
+    OPENAI_AVAILABLE = False
 
 
 class ConsolidationEngine:
@@ -83,6 +90,9 @@ Extract facts in JSON format:
 Only include facts with confidence >= {self.min_confidence}.
 Return ONLY the JSON array, no other text."""
 
+        if not OPENAI_AVAILABLE:
+            return []
+
         try:
             response = openai.chat.completions.create(
                 model=self.llm_model,
@@ -92,28 +102,29 @@ Return ONLY the JSON array, no other text."""
                 ],
                 temperature=0.3
             )
-            
+
             facts_json = response.choices[0].message.content.strip()
             # Remove markdown code blocks if present
             if facts_json.startswith("```"):
                 facts_json = facts_json.split("```")[1]
                 if facts_json.startswith("json"):
                     facts_json = facts_json[4:]
-            
+
             facts = json.loads(facts_json)
-            
+
             # Add metadata
             source_ids = [str(mem.id) for mem in memories]
             for fact in facts:
                 fact['source_memory_ids'] = source_ids
-                fact['created_at'] = datetime.now()
-                fact['last_reinforced'] = datetime.now()
+                fact['created_at'] = datetime.now(timezone.utc)
+                fact['last_reinforced'] = datetime.now(timezone.utc)
                 fact['reinforcement_count'] = 1
-            
+
             return facts
-        
+
         except Exception as e:
-            print(f"Error extracting facts: {e}")
+            import logging
+            logging.getLogger(__name__).warning(f"Error extracting facts: {e}")
             return []
     
     def summarize_conversation(
@@ -154,6 +165,9 @@ Return JSON:
   "salience": 0.0-1.0
 }}"""
 
+        if not OPENAI_AVAILABLE:
+            return None
+
         try:
             response = openai.chat.completions.create(
                 model=self.llm_model,
@@ -163,24 +177,25 @@ Return JSON:
                 ],
                 temperature=0.3
             )
-            
+
             summary_json = response.choices[0].message.content.strip()
             if summary_json.startswith("```"):
                 summary_json = summary_json.split("```")[1]
                 if summary_json.startswith("json"):
                     summary_json = summary_json[4:]
-            
+
             summary = json.loads(summary_json)
-            
+
             # Add metadata
             summary['start_time'] = min(mem.created_at for mem in memories)
             summary['end_time'] = max(mem.created_at for mem in memories)
             summary['message_count'] = len(memories)
-            
+
             return summary
-        
+
         except Exception as e:
-            print(f"Error summarizing conversation: {e}")
+            import logging
+            logging.getLogger(__name__).warning(f"Error summarizing conversation: {e}")
             return None
     
     def merge_similar_facts(
@@ -248,11 +263,11 @@ Return JSON:
             List of memory IDs to delete
         """
         to_delete = []
-        now = datetime.now()
-        
+        now = datetime.now(timezone.utc)
+
         for mem in memories:
             # Calculate age in days
-            age_days = (now - mem.created_at).days
+            age_days = (now - ensure_utc(mem.created_at)).days
             
             # Apply decay formula: importance = salience * e^(-decay_rate * age)
             import math

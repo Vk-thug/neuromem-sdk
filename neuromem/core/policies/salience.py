@@ -3,8 +3,9 @@ Salience-based memory strength calculation.
 """
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
 from neuromem.core.types import MemoryItem
+from neuromem.utils.time import ensure_utc
 
 
 class SalienceCalculator:
@@ -25,7 +26,7 @@ class SalienceCalculator:
             Strength score (0.0-1.0)
         """
         # Recency score (exponential decay)
-        age_days = (datetime.now() - memory.created_at).days
+        age_days = (datetime.now(timezone.utc) - ensure_utc(memory.created_at)).days
         recency_score = math.exp(-0.1 * age_days)
         
         # Repetition score (capped at 10 reinforcements)
@@ -61,6 +62,6 @@ class SalienceCalculator:
             True if memory should be deleted
         """
         strength = SalienceCalculator.calculate_strength(memory)
-        age_days = (datetime.now() - memory.created_at).days
+        age_days = (datetime.now(timezone.utc) - ensure_utc(memory.created_at)).days
         
         return strength < min_strength and age_days > min_age_days

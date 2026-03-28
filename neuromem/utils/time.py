@@ -2,8 +2,15 @@
 Time and temporal utilities for NeuroMem.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+
+
+def ensure_utc(dt: datetime) -> datetime:
+    """Ensure a datetime is timezone-aware (UTC). Treats naive datetimes as UTC."""
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 def format_relative_time(dt: datetime) -> str:
@@ -16,8 +23,8 @@ def format_relative_time(dt: datetime) -> str:
     Returns:
         Relative time string
     """
-    now = datetime.utcnow()
-    delta = now - dt
+    now = datetime.now(timezone.utc)
+    delta = now - ensure_utc(dt)
     
     seconds = delta.total_seconds()
     
@@ -50,7 +57,7 @@ def parse_time_window(window: str) -> Optional[datetime]:
     Returns:
         Datetime threshold or None if invalid
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     
     if not window:
         return None

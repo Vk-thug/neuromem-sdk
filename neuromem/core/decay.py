@@ -6,7 +6,8 @@ memories fade over time without reinforcement.
 """
 
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from neuromem.utils.time import ensure_utc
 from typing import List
 from neuromem.core.types import MemoryItem
 
@@ -47,7 +48,7 @@ class DecayEngine:
             return 1.0
         
         # Time since last access in days
-        time_delta = datetime.utcnow() - item.last_accessed
+        time_delta = datetime.now(timezone.utc) - ensure_utc(item.last_accessed)
         days = time_delta.total_seconds() / 86400.0
         
         # Adjust decay rate based on reinforcement
@@ -123,7 +124,7 @@ class DecayEngine:
         Returns:
             Updated memory item
         """
-        item.last_accessed = datetime.utcnow()
+        item.last_accessed = datetime.now(timezone.utc)
         item.reinforcement += 1
         return item
     
@@ -168,11 +169,11 @@ class DecayEngine:
         Returns:
             List of memories ready for consolidation
         """
-        threshold_date = datetime.utcnow() - timedelta(days=days_threshold)
+        threshold_date = datetime.now(timezone.utc) - timedelta(days=days_threshold)
         
         candidates = [
             item for item in episodic_items
-            if item.created_at < threshold_date
+            if ensure_utc(item.created_at) < threshold_date
             and not self.should_forget(item)  # Must still be strong enough
         ]
         

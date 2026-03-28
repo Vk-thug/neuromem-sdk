@@ -1,0 +1,15 @@
+description = "Delete a specific memory by ID, or browse recent memories to pick one"
+
+prompt = """The user wants to delete a memory.
+
+Memory ID provided: {{args}}
+
+If a memory ID was provided:
+1. First call `get_memory` to show what will be deleted
+2. Ask for confirmation
+3. If confirmed, call `delete_memory`
+
+If no ID was provided:
+1. Call `list_memories` with limit=20
+2. Show the list with short IDs
+3. Ask the user which one to delete"""

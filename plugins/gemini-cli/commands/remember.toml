@@ -1,0 +1,14 @@
+description = "Store a memory — saves context, decisions, preferences, or facts for later recall"
+
+prompt = """Use the NeuroMem `store_memory` MCP tool to save this memory:
+
+Content to remember: {{args}}
+
+Choose the appropriate template based on content:
+- "preference" if it describes how the user likes things
+- "decision" if it records a choice or decision
+- "fact" if it states objective information
+- "goal" if it sets an objective or target
+- Omit template for general information
+
+After storing, confirm what was saved and the detected memory type."""

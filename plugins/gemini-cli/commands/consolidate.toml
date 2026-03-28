@@ -1,0 +1,14 @@
+description = "Trigger memory consolidation — promotes recurring episodic patterns into stable semantic knowledge"
+
+prompt = """Run NeuroMem memory consolidation.
+
+First explain what will happen:
+- Episodic memories are reviewed for recurring patterns
+- Stable facts are extracted and promoted to semantic memory
+- Behavioral patterns become procedural memory
+- Ebbinghaus forgetting curves decay weak memories
+- Similar facts are merged to reduce redundancy
+
+Then call the `consolidate` MCP tool.
+
+After completion, call `get_stats` to show updated memory counts so the user can see what changed."""

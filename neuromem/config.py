@@ -118,6 +118,14 @@ class NeuroMemConfig:
             "recency_half_life_days": 30
         })
 
+    def workflows(self) -> Dict[str, Any]:
+        """Get Inngest workflow configuration."""
+        return self.raw["neuromem"].get("workflows", {
+            "enabled": False,
+            "app_id": "neuromem",
+            "is_production": False,
+        })
+
     
     def get(self, key: str, default: Any = None) -> Any:
         """

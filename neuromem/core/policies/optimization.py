@@ -2,8 +2,9 @@
 Embedding optimization policy with ML versioning.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from neuromem.core.types import MemoryItem
+from neuromem.utils.time import ensure_utc
 
 
 class EmbeddingOptimizationPolicy:
@@ -51,7 +52,7 @@ class EmbeddingOptimizationPolicy:
             return True
         
         # Embedding too old?
-        age_days = (datetime.now() - memory.embedding_metadata.last_updated).days
+        age_days = (datetime.now(timezone.utc) - ensure_utc(memory.embedding_metadata.last_updated)).days
         if age_days > self.max_age_days and memory.salience >= self.min_salience_for_reembed:
             return True
         

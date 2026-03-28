@@ -10,7 +10,8 @@ Combines multiple retrieval strategies:
 """
 
 from typing import List, Dict, Any, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from neuromem.utils.time import ensure_utc
 import math
 
 
@@ -65,13 +66,13 @@ class HybridRetrieval:
         """
         if half_life_days is None:
             half_life_days = self.recency_half_life_days
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         
         # Use last_accessed if available, otherwise created_at
         reference_time = last_accessed if last_accessed else created_at
         
         # Calculate age in days
-        age_days = (now - reference_time).total_seconds() / 86400.0
+        age_days = (now - ensure_utc(reference_time)).total_seconds() / 86400.0
         
         # Exponential decay: score = 0.5^(age / half_life)
         score = math.pow(0.5, age_days / half_life_days)
@@ -138,8 +139,8 @@ class HybridRetrieval:
             
             # Recency score
             recency_score = self.calculate_recency_score(
-                self._get_attr(memory, 'created_at', datetime.now()),
-                self._get_attr(memory, 'last_accessed', datetime.now())
+                self._get_attr(memory, 'created_at', datetime.now(timezone.utc)),
+                self._get_attr(memory, 'last_accessed', datetime.now(timezone.utc))
             )
             
             # Importance score
@@ -241,47 +242,21 @@ class HybridRetrieval:
         filters: Dict[str, Any] = None
     ) -> List[Any]:
         """
-        Perform hybrid retrieval with multi-stage filtering and ranking.
+        Perform hybrid retrieval with filtering and multi-signal ranking.
+
+        Zip memories with their similarity scores first, then apply filters
+        on the zipped pairs to maintain correct score alignment.
         """
-        results = all_memories
-        
-        # Stage 1: Apply filters
+        # Zip inputs to keep similarity alignment through filtering
+        candidates = [
+            (mem, similarities[i] if i < len(similarities) else 0.0)
+            for i, mem in enumerate(all_memories)
+        ]
+
+        # Stage 1: Apply filters on zipped pairs (single pass)
         if filters:
-            # Tag filtering
-            if 'required_tags' in filters or 'excluded_tags' in filters:
-                results = self.filter_by_tags(
-                    results,
-                    filters.get('required_tags'),
-                    filters.get('excluded_tags')
-                )
-            
-            # Time range filtering
-            if 'start_time' in filters or 'end_time' in filters:
-                results = self.filter_by_timerange(
-                    results,
-                    filters.get('start_time'),
-                    filters.get('end_time')
-                )
-        
-        # Stage 2: Hybrid ranking
-        # Note: similarities list must match original all_memories indices
-        # If we filtered, we need to map similarities correctly or re-compute
-        # For now, simplistic assumption: filtering happens AFTER similarity search
-        # But here we are filtering candidates that already have similarities computed.
-        # This implementation is slightly flawed if we filter out items and lose their similarity mapping.
-        
-        # Correct approach:
-        # Zip inputs -> Filter -> Unzip
-        candidates_with_sims = []
-        for i, mem in enumerate(all_memories):
-            sim = similarities[i] if i < len(similarities) else 0.0
-            candidates_with_sims.append((mem, sim))
-            
-        # Apply filters to zipped list
-        filtered_candidates = []
-        if filters:
-            for mem, sim in candidates_with_sims:
-                # Apply tag logic
+            filtered = []
+            for mem, sim in candidates:
                 memory_tags = set(self._get_attr(mem, 'tags', []))
                 if 'required_tags' in filters:
                     if not all(tag in memory_tags for tag in filters['required_tags']):
@@ -289,30 +264,23 @@ class HybridRetrieval:
                 if 'excluded_tags' in filters:
                     if any(tag in memory_tags for tag in filters['excluded_tags']):
                         continue
-                
-                # Apply time logic
                 created_at = self._get_attr(mem, 'created_at')
                 if 'start_time' in filters and created_at and created_at < filters['start_time']:
                     continue
                 if 'end_time' in filters and created_at and created_at > filters['end_time']:
                     continue
-                    
-                filtered_candidates.append((mem, sim))
-            
-            # Use filtered list
-            results = [x[0] for x in filtered_candidates]
-            filtered_sims = [x[1] for x in filtered_candidates]
-        else:
-            results = all_memories
-            filtered_sims = similarities
-            
+                filtered.append((mem, sim))
+            candidates = filtered
+
+        # Unzip
+        results = [x[0] for x in candidates]
+        filtered_sims = [x[1] for x in candidates]
+
         # Stage 2: Hybrid ranking
         ranked = self.rank_results(results, filtered_sims)
-        
+
         # Stage 3: Select top-k
-        top_k = [memory for memory, score in ranked[:k]]
-        
-        return top_k
+        return [memory for memory, score in ranked[:k]]
     
     def explain_ranking(
         self,
@@ -323,8 +291,8 @@ class HybridRetrieval:
         Explain why a memory was ranked highly.
         """
         recency = self.calculate_recency_score(
-            self._get_attr(memory, 'created_at', datetime.now()),
-            self._get_attr(memory, 'last_accessed', datetime.now())
+            self._get_attr(memory, 'created_at', datetime.now(timezone.utc)),
+            self._get_attr(memory, 'last_accessed', datetime.now(timezone.utc))
         )
         
         importance = self.calculate_importance_score(

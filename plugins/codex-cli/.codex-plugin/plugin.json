@@ -1,0 +1,29 @@
+{
+  "name": "neuromem",
+  "version": "0.2.0",
+  "description": "Brain-inspired persistent memory for coding agents — remember experiences, learn facts, adapt to your style, and forget naturally",
+  "author": {
+    "name": "NeuroMem Team",
+    "url": "https://github.com/Vk-thug/neuromem-sdk"
+  },
+  "homepage": "https://docs.neuromem.ai",
+  "repository": "https://github.com/Vk-thug/neuromem-sdk",
+  "license": "MIT",
+  "keywords": ["memory", "ai", "agents", "knowledge-graph", "cognitive", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "NeuroMem — Brain-Inspired Memory",
+    "shortDescription": "Persistent memory with Ebbinghaus decay, LLM consolidation, and graph-augmented retrieval",
+    "longDescription": "NeuroMem gives your coding agent a brain-inspired memory system with four memory types (episodic, semantic, procedural, affective), forgetting curves that naturally fade unused knowledge, LLM-driven consolidation that promotes patterns into stable facts, and a knowledge graph for multi-hop reasoning. Works with any storage backend: PostgreSQL+pgvector, Qdrant, SQLite, or in-memory.",
+    "developerName": "NeuroMem Team",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://docs.neuromem.ai",
+    "defaultPrompt": [
+      "Remember that I prefer Python type annotations on all functions",
+      "What do you remember about my coding preferences?",
+      "Search my memories for database migration decisions"
+    ]
+  }
+}

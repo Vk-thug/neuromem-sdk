@@ -6,7 +6,7 @@ mimicking the hippocampus-to-neocortex consolidation process in the brain.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict
 from neuromem.core.types import MemoryItem, MemoryType, ConsolidationResult
 from neuromem.memory.consolidation import ConsolidationEngine
@@ -95,8 +95,8 @@ class Consolidator:
                 memory_type=MemoryType.SEMANTIC,
                 salience=0.8,
                 confidence=fact.get('confidence', 0.8),
-                created_at=datetime.utcnow(),
-                last_accessed=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                last_accessed=datetime.now(timezone.utc),
                 decay_rate=0.01,
                 reinforcement=1,
                 inferred=True,
@@ -123,8 +123,8 @@ class Consolidator:
                 memory_type=MemoryType.SEMANTIC,
                 salience=summary.get('salience', 0.5),
                 confidence=1.0,
-                created_at=datetime.utcnow(),
-                last_accessed=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc),
+                last_accessed=datetime.now(timezone.utc),
                 decay_rate=0.02,
                 reinforcement=1,
                 inferred=True,

@@ -1,0 +1,5 @@
+# Dataset cache (downloaded on first run)
+datasets/.cache/
+
+# Benchmark results (generated per run)
+results/

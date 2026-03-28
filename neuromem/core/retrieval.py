@@ -10,7 +10,8 @@ This module implements goal-driven memory retrieval with scoring based on:
 """
 
 import math
-from datetime import datetime
+from datetime import datetime, timezone
+from neuromem.utils.time import ensure_utc
 from typing import List, Tuple
 from neuromem.core.types import MemoryItem
 from neuromem import constants
@@ -65,7 +66,7 @@ class RetrievalEngine:
             Composite score (0.0-1.0)
         """
         # Calculate recency score (exponential decay)
-        age_days = (datetime.utcnow() - item.last_accessed).days + 1
+        age_days = (datetime.now(timezone.utc) - ensure_utc(item.last_accessed)).days + 1
         recency = math.exp(-constants.DEFAULT_RECENCY_DECAY_LAMBDA * age_days)
 
         # Normalize reinforcement (cap at configured max for scoring)
@@ -169,6 +170,58 @@ class RetrievalEngine:
         
         return intersection / union if union > 0 else 0.0
     
+    def boost_keyword_matches(
+        self,
+        items: List[Tuple[MemoryItem, float]],
+        query_text: str,
+        boost: float = None,
+    ) -> List[Tuple[MemoryItem, float]]:
+        """
+        Boost scores for memories that contain exact query keywords.
+
+        This compensates for embedding models that struggle with proper nouns
+        and named entities (e.g., "Arjun", "GitHub Actions", "MegaAuth").
+
+        Args:
+            items: List of (item, score) tuples
+            query_text: The original text query
+            boost: Score boost for keyword matches (default from constants)
+
+        Returns:
+            Re-scored list with keyword matches boosted
+        """
+        if not query_text or not items:
+            return items
+
+        if boost is None:
+            boost = constants.DEFAULT_KEYWORD_BOOST
+
+        # Extract significant words from query (skip stop words, strip punctuation)
+        import string as _string
+        query_words = [
+            w.strip(_string.punctuation) for w in query_text.lower().split()
+            if w.strip(_string.punctuation) not in constants.RETRIEVAL_STOP_WORDS
+            and len(w.strip(_string.punctuation)) > 1
+        ]
+
+        if not query_words:
+            return items
+
+        boosted = []
+        for item, score in items:
+            content_lower = item.content.lower()
+            # Count how many significant query words appear in the memory
+            matches = sum(1 for w in query_words if w in content_lower)
+            if matches > 0:
+                keyword_boost = boost * (matches / len(query_words))
+                boosted.append((item, min(score + keyword_boost, 1.0)))
+            else:
+                boosted.append((item, score))
+
+        # Re-sort by boosted score
+        boosted.sort(key=lambda x: x[1], reverse=True)
+        return boosted
+
     def filter_by_confidence(
         self,
         items: List[Tuple[MemoryItem, float]],

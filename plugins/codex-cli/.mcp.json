@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "python",
+      "args": ["-m", "neuromem.mcp"],
+      "env": {
+        "NEUROMEM_CONFIG": "./neuromem.yaml",
+        "OPENAI_API_KEY": "${OPENAI_API_KEY}"
+      }
+    }
+  }
+}

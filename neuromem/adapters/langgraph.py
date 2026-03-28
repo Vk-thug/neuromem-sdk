@@ -1,326 +1,422 @@
 """
-Enhanced LangGraph adapter for NeuroMem.
+LangGraph adapter for NeuroMem.
 
-Provides multiple integration patterns:
-1. with_memory() - Wrap any graph with memory
-2. NeuroMemCheckpointer - Custom checkpointer for persistence
-3. create_memory_node() - Memory retrieval node
-4. create_observation_node() - Memory storage node
+Compatible with langgraph >= 0.2.x / 1.x (2025-2026 APIs).
+
+Provides:
+1. with_memory() — Wrap any compiled graph with memory (invoke, ainvoke, stream, astream)
+2. create_memory_node() — Memory retrieval node (returns dict, never mutates state)
+3. create_observation_node() — Memory storage node
+4. create_memory_agent_node() — Combined retrieval + agent + storage node
+5. NeuroMemStore — LangGraph BaseStore implementation for cross-thread memory
+
+Nodes follow LangGraph convention: return dicts with keys to update, never mutate state.
 """
 
-from typing import TypedDict, List, Callable, Dict, Any, Optional
-from datetime import datetime
-import json
+from typing import List, Callable, Dict, Any, Optional, Iterator
+from neuromem.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
-class AgentState(TypedDict):
+def with_memory(graph_app: Any, neuromem: Any, k: int = 8) -> Any:
     """
-    Default agent state for LangGraph integration.
-    
-    Extend this with your own state fields:
-        class MyState(AgentState):
-            custom_field: str
-    """
-    input: str
-    context: List[str]
-    output: str
+    Wrap a compiled LangGraph app with automatic memory retrieval and storage.
 
+    Supports invoke, ainvoke, stream, and astream.
 
-def with_memory(graph_app, neuromem, k: int = 8):
-    """
-    Wrap a compiled LangGraph app with automatic memory handling.
-    
-    This is the simplest way to add memory to LangGraph - just wrap your app!
-    
     Args:
         graph_app: Compiled LangGraph application
         neuromem: NeuroMem instance
         k: Number of memories to retrieve
-    
+
     Returns:
         Wrapped app with memory capabilities
-    
+
     Usage:
-        from langgraph.graph import StateGraph
-        from neuromem import NeuroMem
-        from neuromem.adapters.langgraph import with_memory, AgentState
-        
-        memory = NeuroMem.for_langgraph(user_id="user_123")
-        
-        # Build your graph
-        graph = StateGraph(AgentState)
+        graph = StateGraph(MyState)
         graph.add_node("agent", agent_node)
-        graph.set_entry_point("agent")
-        graph.set_finish_point("agent")
-        
-        # Wrap with memory - that's it!
+        graph.add_edge(START, "agent")
+        graph.add_edge("agent", END)
+
         app = with_memory(graph.compile(), memory)
-        
-        # Use normally
-        result = app.invoke({"input": "Hello"})
+        result = app.invoke({"messages": [HumanMessage("Hello")]})
+
+        # Streaming:
+        for chunk in app.stream({"messages": [HumanMessage("Hello")]}):
+            print(chunk)
     """
+
     class MemoryWrapper:
-        def __init__(self, app, nm, k_val):
+        def __init__(self, app: Any, nm: Any, k_val: int):
             self.app = app
             self.neuromem = nm
             self.k = k_val
-        
-        def invoke(self, input: Dict[str, Any], config: Optional[Dict] = None) -> Dict[str, Any]:
-            # 1. Retrieve memories and inject into state
-            if "input" in input:
+
+        def invoke(
+            self, input: Dict[str, Any], config: Optional[Dict] = None, **kwargs
+        ) -> Dict[str, Any]:
+            enriched = self._inject_memory(input)
+            result = self.app.invoke(enriched, config, **kwargs)
+            self._store_observation(input, result)
+            return result
+
+        async def ainvoke(
+            self, input: Dict[str, Any], config: Optional[Dict] = None, **kwargs
+        ) -> Dict[str, Any]:
+            enriched = self._inject_memory(input)
+            result = await self.app.ainvoke(enriched, config, **kwargs)
+            self._store_observation(input, result)
+            return result
+
+        def stream(
+            self, input: Dict[str, Any], config: Optional[Dict] = None, **kwargs
+        ) -> Iterator:
+            """
+            Stream graph execution with memory context.
+
+            Supports all LangGraph stream_mode values:
+            'values', 'updates', 'messages', 'custom', etc.
+            """
+            enriched = self._inject_memory(input)
+            collected_output = []
+
+            for chunk in self.app.stream(enriched, config, **kwargs):
+                yield chunk
+                # Try to capture final output for observation
+                if isinstance(chunk, dict):
+                    collected_output.append(chunk)
+
+            # Store observation from collected output
+            if collected_output:
+                self._store_from_stream(input, collected_output)
+
+        async def astream(
+            self, input: Dict[str, Any], config: Optional[Dict] = None, **kwargs
+        ):
+            """Async stream with memory context."""
+            enriched = self._inject_memory(input)
+            collected_output = []
+
+            async for chunk in self.app.astream(enriched, config, **kwargs):
+                yield chunk
+                if isinstance(chunk, dict):
+                    collected_output.append(chunk)
+
+            if collected_output:
+                self._store_from_stream(input, collected_output)
+
+        def get_state(self, config: Dict) -> Any:
+            """Pass through to underlying graph."""
+            return self.app.get_state(config)
+
+        def get_state_history(self, config: Dict) -> Any:
+            """Pass through to underlying graph."""
+            return self.app.get_state_history(config)
+
+        def update_state(self, config: Dict, values: Dict, **kwargs) -> Any:
+            """Pass through to underlying graph."""
+            return self.app.update_state(config, values, **kwargs)
+
+        def _inject_memory(self, input: Dict[str, Any]) -> Dict[str, Any]:
+            """Retrieve memories and inject into input state."""
+            query = self._extract_query(input)
+            if not query:
+                return input
+
+            try:
+                memories = self.neuromem.retrieve(query=query, task_type="chat", k=self.k)
+                context = [m.content for m in memories]
+            except Exception as e:
+                logger.warning("Memory retrieval failed", extra={"error": str(e)[:200]})
+                context = []
+
+            enriched = dict(input)
+
+            # Inject as 'context' key
+            if context:
+                enriched["context"] = context
+
+            # Also inject into messages if present
+            if context and "messages" in enriched and isinstance(enriched["messages"], list):
+                from langchain_core.messages import SystemMessage
+
+                ctx_text = "\n".join([f"- {c}" for c in context])
+                ctx_msg = SystemMessage(content=f"FACTS ABOUT THE USER:\n{ctx_text}")
+                msgs = list(enriched["messages"])
+                if msgs and isinstance(msgs[0], SystemMessage):
+                    msgs.insert(1, ctx_msg)
+                else:
+                    msgs.insert(0, ctx_msg)
+                enriched["messages"] = msgs
+
+            return enriched
+
+        def _store_observation(self, input: Dict[str, Any], result: Dict[str, Any]) -> None:
+            """Store observation from invoke result, skipping junk responses."""
+            user_input = self._extract_query(input)
+            output = self._extract_output(result)
+            if user_input and output and not self._is_junk_response(output):
                 try:
-                    memories = self.neuromem.retrieve(
-                        query=input["input"],
-                        task_type="chat",
-                        k=self.k
-                    )
-                    input["context"] = [m.content for m in memories]
-                except Exception:
-                    input["context"] = []
-            
-            # 2. Run the graph
-            result = self.app.invoke(input, config)
-            
-            # 3. Store observation
-            if "input" in result and "output" in result:
-                try:
-                    self.neuromem.observe(result["input"], result["output"])
+                    self.neuromem.observe(user_input, output)
                 except Exception:
                     pass
-            
-            return result
-        
-        async def ainvoke(self, input: Dict[str, Any], config: Optional[Dict] = None) -> Dict[str, Any]:
-            # Async version
-            if "input" in input:
+
+        @staticmethod
+        def _is_junk_response(output: str) -> bool:
+            """Check if the response is uninformative and should not be stored."""
+            output_lower = output.lower()
+            junk_markers = [
+                "i don't have access to personal",
+                "i don't have any information",
+                "i don't have personal information",
+                "i'm not sure what",
+                "could you provide more context",
+                "unless it has been shared",
+                "i need more context",
+                "wasn't mentioned in the provided memory",
+                "wasn't mentioned in our past",
+                "i don't have enough information",
+            ]
+            return any(marker in output_lower for marker in junk_markers)
+
+        def _store_from_stream(
+            self, input: Dict[str, Any], chunks: List[Dict[str, Any]]
+        ) -> None:
+            """Store observation from streamed chunks.
+
+            LangGraph stream chunks have the format:
+            {node_name: {key: value, ...}}
+            We need to unwrap the node name layer.
+            """
+            user_input = self._extract_query(input)
+            if not user_input:
+                return
+
+            # Try to find output from chunks (unwrap node layer)
+            output = ""
+            for chunk in reversed(chunks):
+                # LangGraph wraps updates under node name
+                if isinstance(chunk, dict):
+                    for node_name, node_update in chunk.items():
+                        if isinstance(node_update, dict):
+                            output = self._extract_output(node_update)
+                            if output:
+                                break
+                    if output:
+                        break
+                output = self._extract_output(chunk)
+                if output:
+                    break
+
+            if user_input and output and not self._is_junk_response(output):
                 try:
-                    memories = self.neuromem.retrieve(
-                        query=input["input"],
-                        task_type="chat",
-                        k=self.k
-                    )
-                    input["context"] = [m.content for m in memories]
-                except Exception:
-                    input["context"] = []
-            
-            result = await self.app.ainvoke(input, config)
-            
-            if "input" in result and "output" in result:
-                try:
-                    self.neuromem.observe(result["input"], result["output"])
+                    self.neuromem.observe(user_input, output)
                 except Exception:
                     pass
-            
-            return result
-        
-        def stream(self, input: Dict[str, Any], config: Optional[Dict] = None):
-            """Stream support."""
+
+        def _extract_query(self, input: Dict[str, Any]) -> str:
+            """Extract query from various state shapes."""
             if "input" in input:
-                try:
-                    memories = self.neuromem.retrieve(
-                        query=input["input"],
-                        task_type="chat",
-                        k=self.k
-                    )
-                    input["context"] = [m.content for m in memories]
-                except Exception:
-                    input["context"] = []
-            
-            return self.app.stream(input, config)
-    
+                return str(input["input"])
+            if "question" in input:
+                return str(input["question"])
+            if "messages" in input and isinstance(input["messages"], list):
+                for msg in reversed(input["messages"]):
+                    if hasattr(msg, "content") and isinstance(msg.content, str):
+                        # Only extract from human messages
+                        from langchain_core.messages import HumanMessage
+
+                        if isinstance(msg, HumanMessage):
+                            return msg.content
+                    elif isinstance(msg, dict) and msg.get("role") == "user":
+                        return msg.get("content", "")
+            return ""
+
+        def _extract_output(self, result: Dict[str, Any]) -> str:
+            """Extract output text from various result shapes."""
+            if isinstance(result, str):
+                return result
+            if not isinstance(result, dict):
+                return str(result) if result else ""
+
+            if "output" in result:
+                return str(result["output"])
+            if "answer" in result:
+                return str(result["answer"])
+            if "messages" in result and isinstance(result["messages"], list):
+                for msg in reversed(result["messages"]):
+                    if hasattr(msg, "content"):
+                        from langchain_core.messages import AIMessage
+
+                        if isinstance(msg, AIMessage):
+                            return msg.content
+            return ""
+
     return MemoryWrapper(graph_app, neuromem, k)
 
 
-class NeuroMemCheckpointer:
-    """
-    Custom LangGraph checkpointer that stores state in NeuroMem.
-    
-    This allows you to persist graph state across sessions using NeuroMem's
-    procedural memory.
-    
-    Usage:
-        from langgraph.checkpoint import MemorySaver
-        from neuromem.adapters.langgraph import NeuroMemCheckpointer
-        
-        checkpointer = NeuroMemCheckpointer(memory)
-        app = graph.compile(checkpointer=checkpointer)
-    """
-    
-    def __init__(self, neuromem):
-        self.neuromem = neuromem
-    
-    def put(self, config: Dict, checkpoint: Dict, metadata: Dict) -> Dict:
-        """Save checkpoint to NeuroMem."""
-        try:
-            # Store as procedural memory
-            checkpoint_id = config.get("configurable", {}).get("thread_id", "default")
-            content = json.dumps({
-                "checkpoint": checkpoint,
-                "metadata": metadata,
-                "timestamp": datetime.now().isoformat()
-            })
-            
-            # Use procedural memory for workflow state
-            from neuromem.core.types import MemoryItem, MemoryType
-            import uuid
-            
-            memory_item = MemoryItem(
-                id=f"checkpoint_{checkpoint_id}",
-                user_id=self.neuromem.user_id,
-                content=content,
-                embedding=[0.0] * 1536,  # Checkpoints don't need embeddings
-                memory_type=MemoryType.PROCEDURAL,
-                salience=1.0,
-                confidence=1.0,
-                created_at=datetime.now(),
-                last_accessed=datetime.now(),
-                decay_rate=0.0,  # Don't decay checkpoints
-                reinforcement=1,
-                inferred=False,
-                editable=False,
-                tags=["checkpoint", checkpoint_id]
-            )
-            
-            self.neuromem.controller.procedural.store(memory_item)
-            
-        except Exception as e:
-            print(f"Warning: Checkpoint save failed: {e}")
-        
-        return config
-    
-    def get(self, config: Dict) -> Optional[Dict]:
-        """Retrieve checkpoint from NeuroMem."""
-        try:
-            checkpoint_id = config.get("configurable", {}).get("thread_id", "default")
-            
-            # Retrieve from procedural memory
-            memories = self.neuromem.controller.procedural.get_all(limit=100)
-            
-            for memory in memories:
-                if f"checkpoint_{checkpoint_id}" in memory.tags:
-                    data = json.loads(memory.content)
-                    return data.get("checkpoint")
-            
-            return None
-            
-        except Exception:
-            return None
-    
-    def list(self, config: Dict) -> List[Dict]:
-        """List all checkpoints."""
-        # Not implemented for now
-        return []
-
-
-def create_memory_node(memory, k: int = 8) -> Callable:
+def create_memory_node(memory: Any, k: int = 8) -> Callable:
     """
     Create a LangGraph node that retrieves memories.
-    
+
+    Returns a dict update (LangGraph convention), never mutates state.
+
     Args:
         memory: NeuroMem instance
         k: Number of memories to retrieve
-    
+
     Returns:
-        Node function for LangGraph
-    
+        Node function for StateGraph
+
     Usage:
         graph.add_node("memory", create_memory_node(memory))
     """
-    def memory_node(state: AgentState) -> AgentState:
-        """Memory retrieval node."""
+
+    def memory_node(state: Dict[str, Any]) -> Dict[str, Any]:
+        """Memory retrieval node — returns context update dict."""
+        query = state.get("input", "")
+        if not query and "messages" in state:
+            msgs = state["messages"]
+            if msgs:
+                last = msgs[-1]
+                query = last.content if hasattr(last, "content") else str(last)
+
         try:
-            memories = memory.retrieve(
-                query=state["input"],
-                task_type="chat",
-                k=k
-            )
-            state["context"] = [m.content for m in memories]
+            memories = memory.retrieve(query=query, task_type="chat", k=k)
+            context = [m.content for m in memories]
         except Exception:
-            state["context"] = []
-        
-        return state
-    
+            context = []
+
+        return {"context": context}
+
     return memory_node
 
 
-def create_observation_node(memory) -> Callable:
+def create_observation_node(memory: Any) -> Callable:
     """
     Create a LangGraph node that stores observations.
-    
+
+    Returns an empty dict (no state changes) — only side effect is storage.
+
     Args:
         memory: NeuroMem instance
-    
+
     Returns:
-        Node function for LangGraph
-    
-    Usage:
-        graph.add_node("observe", create_observation_node(memory))
+        Node function for StateGraph
     """
-    def observation_node(state: AgentState) -> AgentState:
-        """Observation storage node."""
-        if "input" in state and "output" in state:
+
+    def observation_node(state: Dict[str, Any]) -> Dict[str, Any]:
+        """Observation storage node — stores and returns empty update."""
+        user_input = state.get("input", "")
+        output = state.get("output", "")
+
+        if not user_input and "messages" in state:
+            msgs = state["messages"]
+            for msg in reversed(msgs):
+                if hasattr(msg, "content"):
+                    from langchain_core.messages import HumanMessage
+
+                    if isinstance(msg, HumanMessage):
+                        user_input = msg.content
+                        break
+
+        if not output and "messages" in state:
+            msgs = state["messages"]
+            for msg in reversed(msgs):
+                if hasattr(msg, "content"):
+                    from langchain_core.messages import AIMessage
+
+                    if isinstance(msg, AIMessage):
+                        output = msg.content
+                        break
+
+        if user_input and output:
             try:
-                memory.observe(state["input"], state["output"])
+                memory.observe(user_input, output)
             except Exception:
                 pass
-        
-        return state
-    
+
+        return {}  # No state update — side effect only
+
     return observation_node
 
 
-def create_memory_agent_node(memory, agent_func: Callable, k: int = 8) -> Callable:
+def create_memory_agent_node(
+    memory: Any, agent_func: Callable, k: int = 8
+) -> Callable:
     """
-    Create a combined node that retrieves memories and runs the agent.
-    
+    Create a combined node: retrieve memories -> run agent -> store observation.
+
+    The agent_func receives state with 'context' populated from memory
+    and must return a dict update (LangGraph convention).
+
     Args:
         memory: NeuroMem instance
-        agent_func: Agent function that takes state and returns state
+        agent_func: Agent function: (state: dict) -> dict
         k: Number of memories to retrieve
-    
+
     Returns:
         Combined node function
-    
+
     Usage:
         def my_agent(state):
-            # Use state["context"] for memory context
-            state["output"] = llm.invoke(state["input"])
-            return state
-        
+            context = state.get("context", [])
+            # Use context...
+            return {"output": "response", "messages": [...]}
+
         graph.add_node("agent", create_memory_agent_node(memory, my_agent))
     """
-    def combined_node(state: AgentState) -> AgentState:
+
+    def combined_node(state: Dict[str, Any]) -> Dict[str, Any]:
         """Combined memory + agent node."""
-        # Retrieve memories
+        # 1. Retrieve memories
+        query = state.get("input", "")
+        if not query and "messages" in state:
+            msgs = state["messages"]
+            if msgs:
+                last = msgs[-1]
+                query = last.content if hasattr(last, "content") else str(last)
+
         try:
-            memories = memory.retrieve(
-                query=state["input"],
-                task_type="chat",
-                k=k
-            )
-            state["context"] = [m.content for m in memories]
+            memories = memory.retrieve(query=query, task_type="chat", k=k)
+            context = [m.content for m in memories]
         except Exception:
-            state["context"] = []
-        
-        # Run agent
-        state = agent_func(state)
-        
-        # Store observation
-        if "output" in state:
+            context = []
+
+        # 2. Inject context into state copy for agent
+        state_with_context = dict(state)
+        state_with_context["context"] = context
+
+        # 3. Run agent — must return a dict update
+        result = agent_func(state_with_context)
+
+        # 4. Store observation
+        output = ""
+        if isinstance(result, dict):
+            output = result.get("output", "")
+            if not output and "messages" in result:
+                msgs = result["messages"]
+                if msgs:
+                    last = msgs[-1] if isinstance(msgs, list) else msgs
+                    output = last.content if hasattr(last, "content") else str(last)
+
+        if query and output:
             try:
-                memory.observe(state["input"], state["output"])
+                memory.observe(query, output)
             except Exception:
                 pass
-        
-        return state
-    
+
+        return result
+
     return combined_node
 
 
+# Type alias
+Any = object
+
 __all__ = [
-    "AgentState",
     "with_memory",
-    "NeuroMemCheckpointer",
     "create_memory_node",
     "create_observation_node",
     "create_memory_agent_node",

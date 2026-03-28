@@ -3,7 +3,7 @@ Distributed tracing for memory operations.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 
@@ -19,7 +19,7 @@ class Span:
     
     def finish(self):
         """Mark span as complete"""
-        self.end_time = datetime.now()
+        self.end_time = datetime.now(timezone.utc)
         self.duration_ms = (self.end_time - self.start_time).total_seconds() * 1000
 
 
@@ -30,7 +30,7 @@ class MemoryTrace:
         self.trace_id = trace_id or str(uuid.uuid4())
         self.operation = operation
         self.spans: List[Span] = []
-        self.start_time = datetime.now()
+        self.start_time = datetime.now(timezone.utc)
         self.end_time = None
         self.metadata = {}
     
@@ -38,7 +38,7 @@ class MemoryTrace:
         """Start a new span"""
         span = Span(
             name=name,
-            start_time=datetime.now(),
+            start_time=datetime.now(timezone.utc),
             metadata=metadata or {}
         )
         self.spans.append(span)
@@ -46,7 +46,7 @@ class MemoryTrace:
     
     def finish(self):
         """Mark trace as complete"""
-        self.end_time = datetime.now()
+        self.end_time = datetime.now(timezone.utc)
         # Finish any open spans
         for span in self.spans:
             if span.end_time is None:

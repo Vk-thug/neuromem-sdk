@@ -3,7 +3,7 @@ Maintenance worker for MEDIUM/LOW/BACKGROUND priority tasks.
 """
 
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from neuromem.core.workers.base import BaseWorker
 from neuromem.core.task_types import TaskType
 from neuromem.core.policies.salience import SalienceCalculator
@@ -22,13 +22,13 @@ class MaintenanceWorker(BaseWorker):
         
         # Proactive maintenance config
         self.auto_consolidate_threshold = config.get('auto_consolidate_threshold', 10)
-        self.last_consolidation = datetime.now()
+        self.last_consolidation = datetime.now(timezone.utc)
         self.consolidation_interval_minutes = config.get('consolidation_interval_minutes', 60)
         
-        self.last_optimization = datetime.now()
+        self.last_optimization = datetime.now(timezone.utc)
         self.optimization_interval_hours = config.get('optimization_interval_hours', 24)
         
-        self.last_decay = datetime.now()
+        self.last_decay = datetime.now(timezone.utc)
         self.decay_interval_hours = config.get('decay_interval_hours', 168)  # Weekly
         
         self.salience_calculator = SalienceCalculator()
@@ -105,7 +105,7 @@ class MaintenanceWorker(BaseWorker):
             try:
                 logger.info("Running auto-consolidation")
                 self.controller.consolidate()
-                self.last_consolidation = datetime.now()
+                self.last_consolidation = datetime.now(timezone.utc)
                 self.metrics.increment('maintenance.consolidation.auto')
             except Exception as e:
                 self.metrics.increment('maintenance.consolidation.error')
@@ -116,7 +116,7 @@ class MaintenanceWorker(BaseWorker):
             try:
                 logger.info("Running auto-optimization")
                 self._optimize_embeddings()
-                self.last_optimization = datetime.now()
+                self.last_optimization = datetime.now(timezone.utc)
                 self.metrics.increment('maintenance.optimization.auto')
             except Exception as e:
                 self.metrics.increment('maintenance.optimization.error')
@@ -127,7 +127,7 @@ class MaintenanceWorker(BaseWorker):
             try:
                 logger.info("Running auto-decay")
                 self._apply_decay()
-                self.last_decay = datetime.now()
+                self.last_decay = datetime.now(timezone.utc)
                 self.metrics.increment('maintenance.decay.auto')
             except Exception as e:
                 self.metrics.increment('maintenance.decay.error')
@@ -144,7 +144,7 @@ class MaintenanceWorker(BaseWorker):
             return True
         
         # Check time since last consolidation
-        time_since_last = (datetime.now() - self.last_consolidation).total_seconds() / 60
+        time_since_last = (datetime.now(timezone.utc) - self.last_consolidation).total_seconds() / 60
         if time_since_last >= self.consolidation_interval_minutes:
             return episodic_count > 0  # Only if there are memories
         
@@ -152,12 +152,12 @@ class MaintenanceWorker(BaseWorker):
     
     def _should_optimize(self) -> bool:
         """Check if optimization should run"""
-        time_since_last = (datetime.now() - self.last_optimization).total_seconds() / 3600
+        time_since_last = (datetime.now(timezone.utc) - self.last_optimization).total_seconds() / 3600
         return time_since_last >= self.optimization_interval_hours
     
     def _should_decay(self) -> bool:
         """Check if decay should run"""
-        time_since_last = (datetime.now() - self.last_decay).total_seconds() / 3600
+        time_since_last = (datetime.now(timezone.utc) - self.last_decay).total_seconds() / 3600
         return time_since_last >= self.decay_interval_hours
     
     def _optimize_embeddings(self):

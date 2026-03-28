@@ -1,0 +1,32 @@
+{
+  "name": "neuromem",
+  "version": "0.2.0",
+  "description": "Brain-inspired persistent memory for coding agents — remember experiences, learn facts, adapt to your style, and forget naturally",
+  "author": {
+    "name": "NeuroMem Team",
+    "url": "https://github.com/Vk-thug/neuromem-sdk"
+  },
+  "homepage": "https://docs.neuromem.ai",
+  "repository": "https://github.com/Vk-thug/neuromem-sdk",
+  "license": "MIT",
+  "keywords": ["memory", "ai", "agents", "knowledge-graph", "cognitive", "mcp"],
+  "commands": "./commands/",
+  "agents": "./agents/",
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
+  "userConfig": {
+    "neuromem_config_path": {
+      "description": "Path to neuromem.yaml config file (default: ./neuromem.yaml)",
+      "sensitive": false
+    },
+    "neuromem_user_id": {
+      "description": "Your unique user ID for memory scoping",
+      "sensitive": false
+    },
+    "openai_api_key": {
+      "description": "OpenAI API key for embeddings and consolidation",
+      "sensitive": true
+    }
+  }
+}

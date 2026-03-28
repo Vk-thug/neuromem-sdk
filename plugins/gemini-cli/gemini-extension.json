@@ -1,0 +1,33 @@
+{
+  "name": "neuromem",
+  "version": "0.2.0",
+  "description": "Brain-inspired persistent memory for coding agents — remember, recall, consolidate, and forget naturally",
+  "settings": [
+    {
+      "name": "OpenAI API Key",
+      "description": "API key for embeddings and LLM consolidation (text-embedding-3-large + gpt-4o-mini)",
+      "envVar": "OPENAI_API_KEY",
+      "sensitive": true
+    },
+    {
+      "name": "Config Path",
+      "description": "Path to neuromem.yaml config file (default: ./neuromem.yaml)",
+      "envVar": "NEUROMEM_CONFIG",
+      "sensitive": false
+    },
+    {
+      "name": "User ID",
+      "description": "Unique user ID for memory scoping (default: 'default')",
+      "envVar": "NEUROMEM_USER_ID",
+      "sensitive": false
+    }
+  ],
+  "contextFileName": "GEMINI.md",
+  "mcpServers": {
+    "neuromem": {
+      "command": "python",
+      "args": ["-m", "neuromem.mcp"],
+      "cwd": "${workspacePath}"
+    }
+  }
+}

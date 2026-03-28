@@ -94,3 +94,27 @@ neuromem:
     reconsolidation_enabled: true
     min_retrieval_for_reconsolidation: 3
     context_similarity_threshold: 0.8
+
+  # Inngest Workflow Configuration
+  # Requires: pip install neuromem-sdk[inngest]
+  # Dev server: npx inngest-cli@latest dev -u http://127.0.0.1:8000/api/inngest --no-discovery
+  workflows:
+    enabled: false  # Set true to use Inngest instead of threading workers
+    app_id: neuromem
+    is_production: false
+    server:
+      host: 0.0.0.0
+      port: 8000
+    cron:
+      consolidation: "0 */2 * * *"     # Every 2 hours
+      decay: "0 3 * * *"               # Daily at 3 AM
+      optimization: "0 4 * * 0"        # Weekly on Sunday at 4 AM
+      health_check: "*/15 * * * *"     # Every 15 minutes
+    concurrency:
+      observe: 20                       # Max concurrent observe processing
+      consolidation: 5                  # Max concurrent consolidation jobs
+    retries:
+      observe: 3
+      consolidation: 2
+      decay: 2
+      optimization: 1

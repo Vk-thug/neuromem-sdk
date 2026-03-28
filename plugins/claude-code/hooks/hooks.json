@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import json; print(json.dumps({'additionalContext': 'NeuroMem memory system is available. Use /remember to store, /recall to search, /memories to browse, /consolidate to promote patterns. The memory-assistant agent handles bulk operations and deep analysis.'}))\""
+          }
+        ]
+      }
+    ]
+  }
+}

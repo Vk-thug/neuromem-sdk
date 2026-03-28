@@ -2,7 +2,7 @@
 Reconsolidation policy - memory editing on retrieval.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from neuromem.core.types import MemoryItem
 from typing import Optional
 
@@ -82,7 +82,7 @@ class ReconsolidationPolicy:
         
         # Update retrieval stats
         memory.retrieval_stats.retrieval_count += 1
-        memory.retrieval_stats.last_retrieved = datetime.now()
+        memory.retrieval_stats.last_retrieved = datetime.now(timezone.utc)
         memory.retrieval_stats.total_similarity += similarity
         memory.retrieval_stats.avg_similarity = (
             memory.retrieval_stats.total_similarity / memory.retrieval_stats.retrieval_count
@@ -96,4 +96,4 @@ class ReconsolidationPolicy:
         
         # Reinforce memory
         memory.reinforcement += 1
-        memory.last_accessed = datetime.now()
+        memory.last_accessed = datetime.now(timezone.utc)

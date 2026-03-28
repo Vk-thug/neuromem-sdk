@@ -7,6 +7,8 @@ retry logic, rate limiting, and caching.
 
 import os
 import hashlib
+import threading
+from collections import OrderedDict
 from typing import List, Optional, Dict
 from neuromem.utils.retry import retry_with_exponential_backoff, CircuitBreaker, validate_api_key
 from neuromem.utils.logging import get_logger
@@ -20,16 +22,71 @@ _openai_circuit_breaker = CircuitBreaker(
     name="openai_embeddings"
 )
 
-# Simple in-memory cache for embeddings
-_embedding_cache: Dict[str, List[float]] = {}
+# Thread-safe LRU cache for embeddings.
+# Replaces the previous bare dict which was not safe under concurrent
+# retrieval (3 threads in _retrieve_parallel all calling get_embedding).
+_cache_lock = threading.Lock()
+_embedding_cache: OrderedDict[str, List[float]] = OrderedDict()
 _cache_enabled = os.getenv("NEUROMEM_CACHE_EMBEDDINGS", "true").lower() == "true"
 _max_cache_size = 10000
+
+
+def _cache_get(key: str) -> Optional[List[float]]:
+    """Thread-safe cache read with LRU promotion."""
+    with _cache_lock:
+        if key in _embedding_cache:
+            _embedding_cache.move_to_end(key)
+            return _embedding_cache[key]
+    return None
+
+
+def _cache_put(key: str, value: List[float]) -> None:
+    """Thread-safe cache write with LRU eviction."""
+    with _cache_lock:
+        if key in _embedding_cache:
+            _embedding_cache.move_to_end(key)
+            _embedding_cache[key] = value
+        else:
+            if len(_embedding_cache) >= _max_cache_size:
+                _embedding_cache.popitem(last=False)  # Evict oldest
+            _embedding_cache[key] = value
 
 
 def _get_cache_key(text: str, model: str) -> str:
     """Generate cache key for text and model."""
     content = f"{model}:{text}"
     return hashlib.sha256(content.encode()).hexdigest()
+
+
+def _call_ollama_embed(text: str, model: str) -> List[float]:
+    """
+    Generate embedding using Ollama local model.
+
+    Args:
+        text: Text to embed
+        model: Ollama model name (e.g., 'nomic-embed-text')
+
+    Returns:
+        Embedding vector
+    """
+    import ollama
+
+    # Strip 'ollama/' prefix if present
+    model_name = model.replace("ollama/", "")
+    response = ollama.embed(model=model_name, input=text)
+    return response.embeddings[0]
+
+
+def _is_ollama_model(model: str) -> bool:
+    """Check if the model name indicates an Ollama embedding model."""
+    ollama_models = {
+        "nomic-embed-text",
+        "mxbai-embed-large",
+        "all-minilm",
+        "snowflake-arctic-embed",
+    }
+    clean = model.replace("ollama/", "")
+    return model.startswith("ollama/") or clean in ollama_models
 
 
 def _generate_mock_embedding(text: str, dimensions: int = 1536) -> List[float]:
@@ -142,14 +199,38 @@ def get_embedding(
         )
         text = text[:100000]
 
-    # Check cache
+    # Check cache (thread-safe LRU)
+    cache_key = _get_cache_key(text, model)
     if use_cache and _cache_enabled:
-        cache_key = _get_cache_key(text, model)
-        if cache_key in _embedding_cache:
+        cached = _cache_get(cache_key)
+        if cached is not None:
             logger.debug("Embedding cache hit", extra={'cache_key': cache_key[:16]})
-            return _embedding_cache[cache_key]
+            return cached
 
-    # Get API key
+    # Route to Ollama if model is an Ollama embedding model
+    if _is_ollama_model(model):
+        try:
+            embedding = _call_ollama_embed(text, model)
+
+            if use_cache and _cache_enabled:
+                _cache_put(cache_key, embedding)
+
+            logger.debug(
+                "Ollama embedding generated",
+                extra={'model': model, 'text_length': len(text), 'embedding_dim': len(embedding)}
+            )
+            return embedding
+
+        except Exception as e:
+            if fallback_to_mock:
+                logger.error(
+                    "Ollama embedding failed, falling back to mock",
+                    extra={'error': str(e)[:200], 'model': model}
+                )
+                return _generate_mock_embedding(text, dimensions=768)
+            raise
+
+    # Get API key for OpenAI
     if not api_key:
         api_key = os.getenv("OPENAI_API_KEY")
 
@@ -158,44 +239,46 @@ def get_embedding(
         if not api_key:
             raise ValueError("OPENAI_API_KEY not set")
 
-        # Validate API key
         api_key = validate_api_key(api_key, provider="OpenAI")
-
-        # Call API with retry logic
         embedding = _call_openai_api(text, model, api_key)
 
-        # Cache result
         if use_cache and _cache_enabled:
-            if len(_embedding_cache) >= _max_cache_size:
-                # Simple FIFO eviction
-                _embedding_cache.pop(next(iter(_embedding_cache)))
-            _embedding_cache[cache_key] = embedding
+            _cache_put(cache_key, embedding)
 
         logger.debug(
             "Embedding generated successfully",
             extra={'model': model, 'text_length': len(text), 'embedding_dim': len(embedding)}
         )
-
         return embedding
 
     except ImportError:
-        logger.warning("OpenAI package not installed, using mock embeddings")
+        # OpenAI not installed — try Ollama as fallback
+        try:
+            embedding = _call_ollama_embed("nomic-embed-text", model="nomic-embed-text")
+            # If Ollama works, re-route to it
+            embedding = _call_ollama_embed(text, model="nomic-embed-text")
+            logger.info("OpenAI not installed, using Ollama nomic-embed-text")
+            return embedding
+        except Exception:
+            pass
+        logger.warning("No embedding provider available, using mock")
         return _generate_mock_embedding(text)
 
     except Exception as e:
         if fallback_to_mock:
+            # Try Ollama before mock
+            try:
+                embedding = _call_ollama_embed(text, model="nomic-embed-text")
+                logger.info("OpenAI failed, using Ollama nomic-embed-text")
+                return embedding
+            except Exception:
+                pass
             logger.error(
-                "OpenAI API call failed, falling back to mock embeddings",
-                exc_info=True,
+                "All embedding providers failed, using mock",
                 extra={'error': str(e)[:200], 'model': model}
             )
             return _generate_mock_embedding(text)
         else:
-            logger.error(
-                "OpenAI API call failed",
-                exc_info=True,
-                extra={'error': str(e)[:200], 'model': model}
-            )
             raise
 
 
@@ -247,12 +330,11 @@ def batch_get_embeddings(
 
                 embeddings = [item.embedding for item in response.data]
 
-                # Cache results
+                # Cache results (thread-safe)
                 if use_cache and _cache_enabled:
                     for text, embedding in zip(texts, embeddings):
-                        cache_key = _get_cache_key(text, model)
-                        if len(_embedding_cache) < _max_cache_size:
-                            _embedding_cache[cache_key] = embedding
+                        ck = _get_cache_key(text, model)
+                        _cache_put(ck, embedding)
 
                 logger.info(
                     "Batch embeddings generated",
@@ -275,8 +357,8 @@ def batch_get_embeddings(
 
 def clear_embedding_cache():
     """Clear the in-memory embedding cache."""
-    global _embedding_cache
-    _embedding_cache = {}
+    with _cache_lock:
+        _embedding_cache.clear()
     logger.info("Embedding cache cleared")
 
 

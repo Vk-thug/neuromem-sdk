@@ -1,0 +1,13 @@
+description = "Search memories — find relevant context, decisions, or knowledge from past sessions"
+
+prompt = """Use the NeuroMem `search_memories` MCP tool to find relevant memories.
+
+Search query: {{args}}
+
+Set k=10 for a comprehensive search.
+
+Present results clearly:
+- Show each memory's content, type, confidence, and tags
+- Note any low-confidence (<0.5) memories that may be fading
+- Group by memory type if more than 5 results
+- If no results, suggest alternative search terms or the structured `search_advanced` syntax"""

@@ -3,7 +3,7 @@ Ingest worker for CRITICAL priority tasks (observe).
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from neuromem.core.workers.base import BaseWorker
 from neuromem.core.task_types import TaskType, TaskPriority
 from neuromem.core.types import MemoryItem, MemoryType, EmbeddingMetadata, RetrievalStats
@@ -147,8 +147,8 @@ class IngestWorker(BaseWorker):
             memory_type=MemoryType.EPISODIC,
             salience=task.salience,
             confidence=0.9,
-            created_at=datetime.now(),
-            last_accessed=datetime.now(),
+            created_at=datetime.now(timezone.utc),
+            last_accessed=datetime.now(timezone.utc),
             decay_rate=0.1,
             reinforcement=0,
             inferred=False,
@@ -157,8 +157,8 @@ class IngestWorker(BaseWorker):
             metadata=metadata,
             embedding_metadata=EmbeddingMetadata(
                 model_name=self.embedding_model,
-                created_at=datetime.now(),
-                last_updated=datetime.now()
+                created_at=datetime.now(timezone.utc),
+                last_updated=datetime.now(timezone.utc)
             ),
             retrieval_stats=RetrievalStats()
         )
@@ -166,6 +166,18 @@ class IngestWorker(BaseWorker):
         # 4. Store
         self.controller.episodic.store(memory)
         self.metrics.increment('memory.created', {'type': 'episodic'})
+
+        # 5. Entity extraction + graph registration (mirrors _observe_sync path)
+        try:
+            from neuromem.core.graph import extract_entities
+            entities = extract_entities(content)
+            if entities:
+                self.controller.graph.register_entities(memory.id, entities)
+        except Exception as e:
+            logger.warning(
+                "Entity extraction failed in async path",
+                extra={'error': str(e)[:200], 'memory_id': memory.id}
+            )
 
     def _send_to_dead_letter_queue(self, task, error: Exception):
         """
@@ -190,7 +202,7 @@ class IngestWorker(BaseWorker):
             'data': task.data,
             'error': str(error),
             'error_type': type(error).__name__,
-            'failed_at': datetime.now(),
+            'failed_at': datetime.now(timezone.utc),
             'salience': task.salience
         }
 

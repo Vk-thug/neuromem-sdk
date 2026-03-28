@@ -2,7 +2,9 @@
 Conflict resolution for contradicting memories.
 """
 
+import string as _string
 from neuromem.core.types import MemoryItem
+from neuromem import constants
 from typing import Tuple
 
 
@@ -28,17 +30,39 @@ class ConflictResolver:
         Returns:
             True if memories conflict
         """
-        # Simple heuristic: same tags but different content
-        if set(mem1.tags) & set(mem2.tags):
-            # Check for negation words
-            negation_words = ['not', 'no', 'never', 'don\'t', 'doesn\'t']
-            mem1_has_negation = any(word in mem1.content.lower() for word in negation_words)
-            mem2_has_negation = any(word in mem2.content.lower() for word in negation_words)
-            
-            if mem1_has_negation != mem2_has_negation:
-                return True
-        
-        return False
+        # Content-based conflict detection: shared significant words + negation asymmetry
+        # This avoids dependency on auto-tagger tags which can be inconsistent
+        user1 = mem1.content.split("\nAssistant:")[0].replace("User: ", "").lower()
+        user2 = mem2.content.split("\nAssistant:")[0].replace("User: ", "").lower()
+
+        stop_words = constants.RETRIEVAL_STOP_WORDS
+        words1 = {
+            w.strip(_string.punctuation) for w in user1.split()
+            if w.strip(_string.punctuation) not in stop_words
+            and len(w.strip(_string.punctuation)) > 2
+        }
+        words2 = {
+            w.strip(_string.punctuation) for w in user2.split()
+            if w.strip(_string.punctuation) not in stop_words
+            and len(w.strip(_string.punctuation)) > 2
+        }
+
+        shared_words = words1 & words2
+        # Require high overlap (at least 3 shared words AND >40% of the smaller set)
+        # to avoid false positives from topically related but non-conflicting memories
+        min_set_size = min(len(words1), len(words2)) if words1 and words2 else 0
+        overlap_ratio = len(shared_words) / min_set_size if min_set_size > 0 else 0
+        if len(shared_words) < 3 or overlap_ratio < 0.4:
+            return False
+
+        negation_words = {
+            "not", "never", "don't", "doesn't", "isn't", "aren't",
+            "won't", "hate", "dislike", "switched", "no longer", "stop", "quit",
+        }
+        neg1 = any(f" {w} " in f" {user1} " for w in negation_words)
+        neg2 = any(f" {w} " in f" {user2} " for w in negation_words)
+
+        return neg1 != neg2
     
     def resolve(self, mem1: MemoryItem, mem2: MemoryItem) -> Tuple[MemoryItem, MemoryItem]:
         """
