@@ -7,6 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-03-29
+
+### Added — Graph Memory & Advanced Retrieval
+- **Memory knowledge graph** (`neuromem/core/graph.py`) — Obsidian-style backlinks and HippoRAG-inspired entity retrieval with 5 relationship types (`derived_from`, `contradicts`, `reinforces`, `related`, `supersedes`)
+- **Entity extraction** — lightweight, inline proper noun extraction during `observe()` with O(1) entity-to-memory lookup
+- **Graph-augmented retrieval** — `retrieve_with_context()` expands results by traversing entity connections
+- **Structured query syntax** (`neuromem/core/query.py`) — filter by `type:`, `tag:`, `confidence:`, `salience:`, `after:`, `before:`, `intent:`, `sentiment:`, `source:`, `"exact phrase"`
+- **Multi-hop query decomposition** — automatic decomposition for complex queries requiring cross-memory reasoning
+
+### Added — MCP Server
+- **12 MCP tools** — `store_memory`, `search_memories`, `search_advanced`, `get_context`, `get_memory`, `list_memories`, `update_memory`, `delete_memory`, `consolidate`, `get_stats`, `find_by_tags`, `get_graph`
+- **3 resources** — `neuromem://memories/recent`, `neuromem://memories/stats`, `neuromem://config`
+- **2 prompts** — `memory_context(query)`, `memory_summary(topic)`
+- Console script: `neuromem-mcp`
+
+### Added — Framework Adapters (5 new, 8 total)
+- **CrewAI adapter** — `NeuroMemSearchTool`, `NeuroMemStoreTool`, `NeuroMemConsolidateTool`, `NeuroMemContextTool`
+- **AutoGen (AG2) adapter** — `NeuroMemCapability`, `register_neuromem_tools()`
+- **DSPy adapter** — `NeuroMemRetriever` (drop-in `dspy.Retrieve`), `MemoryAugmentedQA`
+- **Haystack adapter** — `NeuroMemRetriever`, `NeuroMemWriter`, `NeuroMemContextRetriever` pipeline components
+- **Semantic Kernel adapter** — `NeuroMemPlugin` with `@kernel_function` methods
+- **LangChain adapter** — major refactor with improved error handling and async support
+- **LangGraph adapter** — major refactor with `NeuroMemStore` (BaseStore), better state management
+- All adapters use lazy imports with defensive error handling for missing optional dependencies
+
+### Added — Memory Templates & Summaries
+- **Memory templates** (`neuromem/memory/templates.py`) — structured observation templates (`decision`, `preference`, `fact`, `goal`, `feedback`) with auto-detection from user input keywords
+- **Temporal summaries** (`neuromem/memory/summaries.py`) — `daily_summary()` and `weekly_digest()` with topic extraction, sentiment distribution, and key facts
+
+### Added — Inngest Workflows
+- **4 cron jobs** — `scheduled_consolidation` (2h), `scheduled_decay`, `scheduled_optimization`, `scheduled_health_check`
+- **3 event-driven functions** — `on_memory_observed`, `on_consolidation_requested`, `on_memory_batch_ingest`
+- **Full maintenance cycle** workflow
+
+### Added — AI Assistant Plugins
+- **Claude Code plugin** — MCP integration, 5 slash commands, memory assistant agent, hooks
+- **Codex CLI plugin** — memory management skill
+- **Gemini CLI plugin** — TOML extension with 5 commands
+
+### Added — Benchmarking Suite
+- **LoCoMo benchmark** (ACL 2024) — 10 conversations, 1,986 QA pairs, 5 categories
+- **Adapter-based architecture** — NeuroMem, Mem0, LangMem, Zep system adapters
+- **Metrics** — exact match, F1, containment, retrieval hit rate, LLM judge, latency (P50/P95)
+- **CLI** — `python -m benchmarks --systems neuromem mem0 --quick`
+- **Results**: 39.4 F1 (Cat 1+4), outperforms Mem0 (+8.8pts) and LangMem (+6.7pts)
+
+### Added — New APIs
+- `retrieve_with_context(query, task_type, k)` — graph-expanded retrieval
+- `search(query_string, k)` — structured query search
+- `find_by_tags(tag_prefix, limit)` — hierarchical tag discovery
+- `get_tag_tree()` — tag hierarchy with counts
+- `get_memories_by_date(date)` — temporal retrieval
+- `get_memories_in_range(start, end, memory_type)` — date range filtering
+- `get_graph()` — export memory graph as `{nodes, edges}`
+- `daily_summary(date)` — daily memory digest
+- `weekly_digest(week_start)` — weekly memory summary
+- `NeuroMem.for_crewai()`, `.for_autogen()`, `.for_dspy()`, `.for_haystack()`, `.for_semantic_kernel()`, `.for_mcp()` — convenience constructors
+
+### Added — Tests
+- 9 new test modules (graph, query, MCP, workflows, 5 adapter tests)
+- 176 total tests, all passing
+- Comprehensive mocking for OpenAI API in fixtures
+
+### Fixed
+- **Timezone-aware datetime** — all `datetime.utcnow()` and naive `datetime.now()` replaced with `datetime.now(timezone.utc)` across 33 call sites
+- **Keyword punctuation** — queries with trailing `?`/`.` now match correctly
+- **Conflict detection** — redesigned from tag-based to content-analysis with word overlap and negation patterns
+- **Async entity extraction** — `observe()` in async mode now populates the entity graph
+- **Temporal query routing** — narrowed multi-hop classification to compound temporal queries only
+- **Adapter imports** — all 8 adapters use defensive try/except with clear error messages
+- **Test fixture mocking** — OpenAI API properly mocked, eliminating flaky failures
+
+### Dependencies
+- New optional groups: `mcp`, `inngest`, `crewai`, `autogen`, `dspy`, `haystack`, `semantic-kernel`
+
 ## [0.1.0] - 2026-02-05
 
 ### Added - Performance & Reliability
