@@ -9,6 +9,7 @@ from typing import Any, Optional, List
 
 try:
     import inngest
+
     INNGEST_AVAILABLE = True
 except ImportError:
     INNGEST_AVAILABLE = False
@@ -21,6 +22,7 @@ logger = get_logger(__name__)
 # ──────────────────────────────────────────────
 # Event name constants
 # ──────────────────────────────────────────────
+
 
 class NeuroMemEvents:
     """Event name constants for NeuroMem workflows."""

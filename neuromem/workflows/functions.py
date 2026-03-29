@@ -24,6 +24,7 @@ from typing import Any, List, Optional
 
 try:
     import inngest
+
     INNGEST_AVAILABLE = True
 except ImportError:
     INNGEST_AVAILABLE = False
@@ -180,10 +181,7 @@ def create_all_functions(client: Any, neuromem: Any) -> List[Any]:
                 "NeuroMem health degraded",
                 extra={
                     "status": status,
-                    "checks": {
-                        k: v.get("status")
-                        for k, v in health.get("checks", {}).items()
-                    },
+                    "checks": {k: v.get("status") for k, v in health.get("checks", {}).items()},
                 },
             )
 
@@ -388,9 +386,7 @@ def create_all_functions(client: Any, neuromem: Any) -> List[Any]:
         if stale and stale.get("count", 0) > 0:
             optimization_result = ctx.step.run(
                 "reembed",
-                functools.partial(
-                    _reembed_memories, neuromem, stale.get("ids", [])
-                ),
+                functools.partial(_reembed_memories, neuromem, stale.get("ids", [])),
             )
 
         # Step 5: Health check
@@ -435,7 +431,10 @@ def _run_consolidation(neuromem: Any) -> dict:
     """Execute memory consolidation."""
     try:
         neuromem.consolidate()
-        return {"status": "completed", "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}
+        return {
+            "status": "completed",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        }
     except Exception as e:
         logger.error("Consolidation failed", exc_info=True, extra={"error": str(e)[:200]})
         return {"status": "failed", "error": str(e)[:200]}
@@ -507,7 +506,9 @@ def _reembed_memories(neuromem: Any, memory_ids: List[str]) -> dict:
                 memory.embedding = get_embedding(memory.content, model)
                 if memory.embedding_metadata:
                     memory.embedding_metadata.model_name = model
-                    memory.embedding_metadata.last_updated = datetime.datetime.now(datetime.timezone.utc)
+                    memory.embedding_metadata.last_updated = datetime.datetime.now(
+                        datetime.timezone.utc
+                    )
                 for mem_layer in [controller.episodic, controller.semantic, controller.procedural]:
                     if mem_layer.get_by_id(memory_id):
                         mem_layer.update(memory)
@@ -570,9 +571,11 @@ def _store_observation(
         tags = enrichment.get("tags", [])
         metadata = {
             "intent": enrichment.get("intent"),
-            "sentiment": enrichment.get("sentiment", {}).get("sentiment")
-            if isinstance(enrichment.get("sentiment"), dict)
-            else enrichment.get("sentiment"),
+            "sentiment": (
+                enrichment.get("sentiment", {}).get("sentiment")
+                if isinstance(enrichment.get("sentiment"), dict)
+                else enrichment.get("sentiment")
+            ),
             "entities": enrichment.get("entities", []),
         }
 
@@ -606,9 +609,7 @@ def _should_trigger_consolidation(neuromem: Any) -> bool:
     controller = neuromem.controller
     consolidation_interval = 10
     if hasattr(controller, "config") and controller.config:
-        consolidation_interval = controller.config.memory().get(
-            "consolidation_interval", 10
-        )
+        consolidation_interval = controller.config.memory().get("consolidation_interval", 10)
 
     episodic_count = len(controller.episodic.get_all(limit=consolidation_interval + 1))
     return episodic_count >= consolidation_interval

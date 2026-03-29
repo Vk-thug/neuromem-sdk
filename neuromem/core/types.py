@@ -10,6 +10,7 @@ from enum import Enum
 
 class MemoryType(str, Enum):
     """Types of memory in the NeuroMem system."""
+
     EPISODIC = "episodic"
     SEMANTIC = "semantic"
     PROCEDURAL = "procedural"
@@ -19,6 +20,7 @@ class MemoryType(str, Enum):
 @dataclass
 class EmbeddingMetadata:
     """Metadata about the embedding for ML versioning"""
+
     model_name: str = "text-embedding-3-large"
     model_version: str = "v1"
     created_at: datetime = field(default_factory=datetime.now)
@@ -29,6 +31,7 @@ class EmbeddingMetadata:
 @dataclass
 class RetrievalStats:
     """Statistics about memory retrieval performance"""
+
     retrieval_count: int = 0
     avg_similarity: float = 0.0
     last_retrieved: Optional[datetime] = None
@@ -40,7 +43,7 @@ class RetrievalStats:
 class MemoryItem:
     """
     A single memory item in the NeuroMem system.
-    
+
     Attributes:
         id: Unique identifier for the memory
         user_id: ID of the user this memory belongs to
@@ -57,6 +60,7 @@ class MemoryItem:
         editable: Whether the user can edit this memory
         tags: Optional tags for categorization
     """
+
     id: str
     user_id: str
     content: str
@@ -75,7 +79,7 @@ class MemoryItem:
     embedding_metadata: Optional[EmbeddingMetadata] = None
     retrieval_stats: Optional[RetrievalStats] = None
     strength: float = 1.0  # Salience-based memory strength
-    
+
     def to_dict(self):
         """Convert to dictionary for storage."""
         return {
@@ -83,7 +87,11 @@ class MemoryItem:
             "user_id": self.user_id,
             "content": self.content,
             "embedding": self.embedding,
-            "memory_type": self.memory_type.value if isinstance(self.memory_type, MemoryType) else self.memory_type,
+            "memory_type": (
+                self.memory_type.value
+                if isinstance(self.memory_type, MemoryType)
+                else self.memory_type
+            ),
             "salience": self.salience,
             "confidence": self.confidence,
             "created_at": self.created_at.isoformat(),
@@ -95,7 +103,7 @@ class MemoryItem:
             "tags": self.tags,
             "metadata": self.metadata,
         }
-    
+
     @classmethod
     def from_dict(cls, data: dict):
         """Create from dictionary."""
@@ -107,8 +115,16 @@ class MemoryItem:
             memory_type=MemoryType(data["memory_type"]),
             salience=data["salience"],
             confidence=data["confidence"],
-            created_at=datetime.fromisoformat(data["created_at"]) if isinstance(data["created_at"], str) else data["created_at"],
-            last_accessed=datetime.fromisoformat(data["last_accessed"]) if isinstance(data["last_accessed"], str) else data["last_accessed"],
+            created_at=(
+                datetime.fromisoformat(data["created_at"])
+                if isinstance(data["created_at"], str)
+                else data["created_at"]
+            ),
+            last_accessed=(
+                datetime.fromisoformat(data["last_accessed"])
+                if isinstance(data["last_accessed"], str)
+                else data["last_accessed"]
+            ),
             decay_rate=data["decay_rate"],
             reinforcement=data["reinforcement"],
             inferred=data["inferred"],
@@ -121,6 +137,7 @@ class MemoryItem:
 @dataclass
 class MemoryLink:
     """An explicit relationship between two memories."""
+
     source_id: str
     target_id: str
     link_type: str  # "derived_from" | "contradicts" | "reinforces" | "related" | "supersedes"
@@ -142,6 +159,7 @@ class MemoryLink:
 @dataclass
 class RetrievalContext:
     """Context for memory retrieval."""
+
     query: str
     task_type: str
     k: int
@@ -151,6 +169,7 @@ class RetrievalContext:
 @dataclass
 class ConsolidationResult:
     """Result of a consolidation operation."""
+
     promoted_count: int
     decayed_count: int
     merged_count: int

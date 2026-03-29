@@ -91,9 +91,7 @@ def with_memory(graph_app: Any, neuromem: Any, k: int = 8) -> Any:
             if collected_output:
                 self._store_from_stream(input, collected_output)
 
-        async def astream(
-            self, input: Dict[str, Any], config: Optional[Dict] = None, **kwargs
-        ):
+        async def astream(self, input: Dict[str, Any], config: Optional[Dict] = None, **kwargs):
             """Async stream with memory context."""
             enriched = self._inject_memory(input)
             collected_output = []
@@ -180,9 +178,7 @@ def with_memory(graph_app: Any, neuromem: Any, k: int = 8) -> Any:
             ]
             return any(marker in output_lower for marker in junk_markers)
 
-        def _store_from_stream(
-            self, input: Dict[str, Any], chunks: List[Dict[str, Any]]
-        ) -> None:
+        def _store_from_stream(self, input: Dict[str, Any], chunks: List[Dict[str, Any]]) -> None:
             """Store observation from streamed chunks.
 
             LangGraph stream chunks have the format:
@@ -342,9 +338,7 @@ def create_observation_node(memory: Any) -> Callable:
     return observation_node
 
 
-def create_memory_agent_node(
-    memory: Any, agent_func: Callable, k: int = 8
-) -> Callable:
+def create_memory_agent_node(memory: Any, agent_func: Callable, k: int = 8) -> Callable:
     """
     Create a combined node: retrieve memories -> run agent -> store observation.
 

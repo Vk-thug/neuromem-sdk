@@ -145,9 +145,7 @@ def _register_tools(mcp: FastMCP) -> None:
         """
         memory = _get_memory(ctx)
         try:
-            results = await asyncio.to_thread(
-                memory.search, query_string=query_string, k=k
-            )
+            results = await asyncio.to_thread(memory.search, query_string=query_string, k=k)
             return serialize_memory_list(results)
         except Exception as e:
             logger.error(f"search_advanced failed: {e}")
@@ -189,9 +187,7 @@ def _register_tools(mcp: FastMCP) -> None:
         """
         mem = _get_memory(ctx)
         try:
-            item = await asyncio.to_thread(
-                mem.controller._find_memory_by_id, memory_id
-            )
+            item = await asyncio.to_thread(mem.controller._find_memory_by_id, memory_id)
             if item is None:
                 return {"error": f"Memory {memory_id} not found", "tool": "get_memory"}
             return serialize_memory(item)
@@ -213,9 +209,7 @@ def _register_tools(mcp: FastMCP) -> None:
         """
         memory = _get_memory(ctx)
         try:
-            results = await asyncio.to_thread(
-                memory.list, memory_type=memory_type, limit=limit
-            )
+            results = await asyncio.to_thread(memory.list, memory_type=memory_type, limit=limit)
             return serialize_memory_list(results)
         except Exception as e:
             logger.error(f"list_memories failed: {e}")
@@ -235,9 +229,7 @@ def _register_tools(mcp: FastMCP) -> None:
         """
         memory = _get_memory(ctx)
         try:
-            await asyncio.to_thread(
-                memory.update, memory_id=memory_id, content=content
-            )
+            await asyncio.to_thread(memory.update, memory_id=memory_id, content=content)
             return {"status": "updated", "memory_id": memory_id}
         except Exception as e:
             logger.error(f"update_memory failed: {e}")
@@ -293,9 +285,9 @@ def _register_tools(mcp: FastMCP) -> None:
             try:
                 storage_config = memory.config.storage()
                 vs_config = storage_config.get("vector_store", {})
-                storage_type = vs_config.get("type") or storage_config.get(
-                    "database", {}
-                ).get("type", "memory")
+                storage_type = vs_config.get("type") or storage_config.get("database", {}).get(
+                    "type", "memory"
+                )
             except Exception:
                 pass
 

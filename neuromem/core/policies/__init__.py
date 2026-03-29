@@ -6,8 +6,8 @@ from neuromem.core.policies.conflict_resolution import ConflictResolver
 from neuromem.core.policies.optimization import EmbeddingOptimizationPolicy
 
 __all__ = [
-    'SalienceCalculator',
-    'ReconsolidationPolicy',
-    'ConflictResolver',
-    'EmbeddingOptimizationPolicy'
+    "SalienceCalculator",
+    "ReconsolidationPolicy",
+    "ConflictResolver",
+    "EmbeddingOptimizationPolicy",
 ]

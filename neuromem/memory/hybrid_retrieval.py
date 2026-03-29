@@ -18,24 +18,24 @@ import math
 class HybridRetrieval:
     """
     Multi-stage retrieval system that mimics human memory recall.
-    
+
     Stages:
     1. Fast filtering by keywords/tags
     2. Semantic similarity ranking
     3. Temporal and importance boosting
     4. Final re-ranking and selection
     """
-    
+
     def __init__(
         self,
         recency_weight: float = 0.2,
         importance_weight: float = 0.3,
         similarity_weight: float = 0.5,
-        recency_half_life_days: float = 30.0
+        recency_half_life_days: float = 30.0,
     ):
         """
         Initialize hybrid retrieval.
-        
+
         Args:
             recency_weight: Weight for recency boost
             importance_weight: Weight for importance/salience
@@ -46,70 +46,64 @@ class HybridRetrieval:
         self.importance_weight = importance_weight
         self.similarity_weight = similarity_weight
         self.recency_half_life_days = recency_half_life_days
-    
+
     def calculate_recency_score(
-        self,
-        created_at: datetime,
-        last_accessed: datetime,
-        half_life_days: float = None
+        self, created_at: datetime, last_accessed: datetime, half_life_days: float = None
     ) -> float:
         """
         Calculate recency score using exponential decay.
-        
+
         Args:
             created_at: When memory was created
             last_accessed: When memory was last accessed
             half_life_days: Half-life for decay curve
-        
+
         Returns:
             Recency score (0.0-1.0)
         """
         if half_life_days is None:
             half_life_days = self.recency_half_life_days
         now = datetime.now(timezone.utc)
-        
+
         # Use last_accessed if available, otherwise created_at
         reference_time = last_accessed if last_accessed else created_at
-        
+
         # Calculate age in days
         age_days = (now - ensure_utc(reference_time)).total_seconds() / 86400.0
-        
+
         # Exponential decay: score = 0.5^(age / half_life)
         score = math.pow(0.5, age_days / half_life_days)
-        
+
         return min(1.0, max(0.0, score))
-    
+
     def calculate_importance_score(
-        self,
-        salience: float,
-        reinforcement: int,
-        confidence: float
+        self, salience: float, reinforcement: int, confidence: float
     ) -> float:
         """
         Calculate importance score from memory attributes.
-        
+
         Args:
             salience: Base salience score
             reinforcement: Number of reinforcements
             confidence: Confidence level
-        
+
         Returns:
             Importance score (0.0-1.0)
         """
         # Base importance from salience
         base = salience
-        
+
         # Boost from reinforcement (diminishing returns)
         reinforcement_boost = min(0.3, math.log(1 + reinforcement) * 0.1)
-        
+
         # Confidence factor
         confidence_factor = confidence
-        
+
         # Combined score
         importance = (base + reinforcement_boost) * confidence_factor
-        
+
         return min(1.0, max(0.0, importance))
-    
+
     def _get_attr(self, item: Any, key: str, default: Any = None) -> Any:
         """Helper to get attribute from dict or object."""
         if isinstance(item, dict):
@@ -117,129 +111,121 @@ class HybridRetrieval:
         return getattr(item, key, default)
 
     def rank_results(
-        self,
-        results: List[Any],
-        similarities: List[float]
+        self, results: List[Any], similarities: List[float]
     ) -> List[Tuple[Any, float]]:
         """
         Re-rank results using hybrid scoring.
-        
+
         Args:
             results: List of memory items (objects or dicts)
             similarities: Semantic similarity scores
-        
+
         Returns:
             List of (memory, final_score) tuples, sorted by score
         """
         ranked = []
-        
+
         for i, memory in enumerate(results):
             # Semantic similarity
             sim_score = similarities[i] if i < len(similarities) else 0.5
-            
+
             # Recency score
             recency_score = self.calculate_recency_score(
-                self._get_attr(memory, 'created_at', datetime.now(timezone.utc)),
-                self._get_attr(memory, 'last_accessed', datetime.now(timezone.utc))
+                self._get_attr(memory, "created_at", datetime.now(timezone.utc)),
+                self._get_attr(memory, "last_accessed", datetime.now(timezone.utc)),
             )
-            
+
             # Importance score
             importance_score = self.calculate_importance_score(
-                self._get_attr(memory, 'salience', 0.5),
-                self._get_attr(memory, 'reinforcement', 1),
-                self._get_attr(memory, 'confidence', 0.8)
+                self._get_attr(memory, "salience", 0.5),
+                self._get_attr(memory, "reinforcement", 1),
+                self._get_attr(memory, "confidence", 0.8),
             )
-            
+
             # Weighted combination
             final_score = (
-                self.similarity_weight * sim_score +
-                self.recency_weight * recency_score +
-                self.importance_weight * importance_score
+                self.similarity_weight * sim_score
+                + self.recency_weight * recency_score
+                + self.importance_weight * importance_score
             )
-            
+
             # Store score on object if possible
             if not isinstance(memory, dict):
                 try:
-                    setattr(memory, 'score', final_score)
+                    setattr(memory, "score", final_score)
                 except Exception:
                     pass
             else:
-                memory['score'] = final_score
-            
+                memory["score"] = final_score
+
             ranked.append((memory, final_score))
-        
+
         # Sort by final score (descending)
         ranked.sort(key=lambda x: x[1], reverse=True)
-        
+
         return ranked
-    
+
     def filter_by_tags(
-        self,
-        memories: List[Any],
-        required_tags: List[str] = None,
-        excluded_tags: List[str] = None
+        self, memories: List[Any], required_tags: List[str] = None, excluded_tags: List[str] = None
     ) -> List[Any]:
         """
         Filter memories by tags.
         """
         if not required_tags and not excluded_tags:
             return memories
-        
+
         filtered = []
-        
+
         for memory in memories:
-            memory_tags = set(self._get_attr(memory, 'tags', []))
-            
+            memory_tags = set(self._get_attr(memory, "tags", []))
+
             # Check required tags
             if required_tags:
                 if not all(tag in memory_tags for tag in required_tags):
                     continue
-            
+
             # Check excluded tags
             if excluded_tags:
                 if any(tag in memory_tags for tag in excluded_tags):
                     continue
-            
+
             filtered.append(memory)
-        
+
         return filtered
-    
+
     def filter_by_timerange(
-        self,
-        memories: List[Any],
-        start_time: datetime = None,
-        end_time: datetime = None
+        self, memories: List[Any], start_time: datetime = None, end_time: datetime = None
     ) -> List[Any]:
         """
         Filter memories by time range.
         """
         if not start_time and not end_time:
             return memories
-        
+
         filtered = []
-        
+
         for memory in memories:
-            created_at = self._get_attr(memory, 'created_at')
+            created_at = self._get_attr(memory, "created_at")
             if not created_at:
                 continue
-            
+
             if start_time and created_at < start_time:
                 continue
-            
+
             if end_time and created_at > end_time:
                 continue
-            
+
             filtered.append(memory)
-        
+
         return filtered
-    
+
     def retrieve(
         self,
         query_embedding: List[float],
         all_memories: List[Any],
         similarities: List[float],
         k: int = 10,
-        filters: Dict[str, Any] = None
+        filters: Dict[str, Any] = None,
     ) -> List[Any]:
         """
         Perform hybrid retrieval with filtering and multi-signal ranking.
@@ -257,17 +243,17 @@ class HybridRetrieval:
         if filters:
             filtered = []
             for mem, sim in candidates:
-                memory_tags = set(self._get_attr(mem, 'tags', []))
-                if 'required_tags' in filters:
-                    if not all(tag in memory_tags for tag in filters['required_tags']):
+                memory_tags = set(self._get_attr(mem, "tags", []))
+                if "required_tags" in filters:
+                    if not all(tag in memory_tags for tag in filters["required_tags"]):
                         continue
-                if 'excluded_tags' in filters:
-                    if any(tag in memory_tags for tag in filters['excluded_tags']):
+                if "excluded_tags" in filters:
+                    if any(tag in memory_tags for tag in filters["excluded_tags"]):
                         continue
-                created_at = self._get_attr(mem, 'created_at')
-                if 'start_time' in filters and created_at and created_at < filters['start_time']:
+                created_at = self._get_attr(mem, "created_at")
+                if "start_time" in filters and created_at and created_at < filters["start_time"]:
                     continue
-                if 'end_time' in filters and created_at and created_at > filters['end_time']:
+                if "end_time" in filters and created_at and created_at > filters["end_time"]:
                     continue
                 filtered.append((mem, sim))
             candidates = filtered
@@ -281,49 +267,45 @@ class HybridRetrieval:
 
         # Stage 3: Select top-k
         return [memory for memory, score in ranked[:k]]
-    
-    def explain_ranking(
-        self,
-        memory: Any,
-        similarity: float
-    ) -> Dict[str, Any]:
+
+    def explain_ranking(self, memory: Any, similarity: float) -> Dict[str, Any]:
         """
         Explain why a memory was ranked highly.
         """
         recency = self.calculate_recency_score(
-            self._get_attr(memory, 'created_at', datetime.now(timezone.utc)),
-            self._get_attr(memory, 'last_accessed', datetime.now(timezone.utc))
+            self._get_attr(memory, "created_at", datetime.now(timezone.utc)),
+            self._get_attr(memory, "last_accessed", datetime.now(timezone.utc)),
         )
-        
+
         importance = self.calculate_importance_score(
-            self._get_attr(memory, 'salience', 0.5),
-            self._get_attr(memory, 'reinforcement', 1),
-            self._get_attr(memory, 'confidence', 0.8)
+            self._get_attr(memory, "salience", 0.5),
+            self._get_attr(memory, "reinforcement", 1),
+            self._get_attr(memory, "confidence", 0.8),
         )
-        
+
         final_score = (
-            self.similarity_weight * similarity +
-            self.recency_weight * recency +
-            self.importance_weight * importance
+            self.similarity_weight * similarity
+            + self.recency_weight * recency
+            + self.importance_weight * importance
         )
-        
+
         return {
             "final_score": final_score,
             "components": {
                 "similarity": {
                     "score": similarity,
                     "weight": self.similarity_weight,
-                    "contribution": self.similarity_weight * similarity
+                    "contribution": self.similarity_weight * similarity,
                 },
                 "recency": {
                     "score": recency,
                     "weight": self.recency_weight,
-                    "contribution": self.recency_weight * recency
+                    "contribution": self.recency_weight * recency,
                 },
                 "importance": {
                     "score": importance,
                     "weight": self.importance_weight,
-                    "contribution": self.importance_weight * importance
-                }
-            }
+                    "contribution": self.importance_weight * importance,
+                },
+            },
         }

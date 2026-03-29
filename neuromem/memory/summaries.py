@@ -156,9 +156,7 @@ class TemporalSummarizer:
             "summary": summary,
         }
 
-    def topic_timeline(
-        self, memories: List[MemoryItem], topic_prefix: str
-    ) -> List[Dict[str, Any]]:
+    def topic_timeline(self, memories: List[MemoryItem], topic_prefix: str) -> List[Dict[str, Any]]:
         """
         Timeline of memories about a specific topic.
 
@@ -169,10 +167,7 @@ class TemporalSummarizer:
         Returns:
             List of timeline entries sorted by date
         """
-        matching = [
-            m for m in memories
-            if any(t.startswith(topic_prefix) for t in m.tags)
-        ]
+        matching = [m for m in memories if any(t.startswith(topic_prefix) for t in m.tags)]
 
         matching.sort(key=lambda m: m.created_at)
 
@@ -181,7 +176,9 @@ class TemporalSummarizer:
                 "date": m.created_at.strftime("%Y-%m-%d %H:%M"),
                 "content": m.content[:150],
                 "salience": m.salience,
-                "memory_type": m.memory_type.value if hasattr(m.memory_type, "value") else str(m.memory_type),
+                "memory_type": (
+                    m.memory_type.value if hasattr(m.memory_type, "value") else str(m.memory_type)
+                ),
             }
             for m in matching
         ]

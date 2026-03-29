@@ -17,9 +17,7 @@ logger = get_logger(__name__)
 
 # Global circuit breaker for OpenAI API
 _openai_circuit_breaker = CircuitBreaker(
-    failure_threshold=5,
-    recovery_timeout=60.0,
-    name="openai_embeddings"
+    failure_threshold=5, recovery_timeout=60.0, name="openai_embeddings"
 )
 
 # Thread-safe LRU cache for embeddings.
@@ -112,7 +110,7 @@ def _generate_mock_embedding(text: str, dimensions: int = 1536) -> List[float]:
 
     logger.warning(
         "Using mock embeddings (OpenAI API not available)",
-        extra={'text_length': len(text), 'dimensions': dimensions}
+        extra={"text_length": len(text), "dimensions": dimensions},
     )
 
     return embedding
@@ -124,7 +122,7 @@ def _generate_mock_embedding(text: str, dimensions: int = 1536) -> List[float]:
     max_delay=60.0,
     exponential_base=2.0,
     jitter=True,
-    circuit_breaker=_openai_circuit_breaker
+    circuit_breaker=_openai_circuit_breaker,
 )
 def _call_openai_api(text: str, model: str, api_key: str) -> List[float]:
     """
@@ -145,10 +143,7 @@ def _call_openai_api(text: str, model: str, api_key: str) -> List[float]:
 
     client = OpenAI(api_key=api_key)
 
-    response = client.embeddings.create(
-        input=text,
-        model=model
-    )
+    response = client.embeddings.create(input=text, model=model)
 
     return response.data[0].embedding
 
@@ -158,7 +153,7 @@ def get_embedding(
     model: str = "text-embedding-3-large",
     api_key: Optional[str] = None,
     use_cache: bool = True,
-    fallback_to_mock: bool = True
+    fallback_to_mock: bool = True,
 ) -> List[float]:
     """
     Get embedding vector for text with retry logic and caching.
@@ -195,7 +190,7 @@ def get_embedding(
     if len(text) > 100000:
         logger.warning(
             "Text too long for embedding, truncating",
-            extra={'original_length': len(text), 'truncated_length': 100000}
+            extra={"original_length": len(text), "truncated_length": 100000},
         )
         text = text[:100000]
 
@@ -204,7 +199,7 @@ def get_embedding(
     if use_cache and _cache_enabled:
         cached = _cache_get(cache_key)
         if cached is not None:
-            logger.debug("Embedding cache hit", extra={'cache_key': cache_key[:16]})
+            logger.debug("Embedding cache hit", extra={"cache_key": cache_key[:16]})
             return cached
 
     # Route to Ollama if model is an Ollama embedding model
@@ -217,7 +212,7 @@ def get_embedding(
 
             logger.debug(
                 "Ollama embedding generated",
-                extra={'model': model, 'text_length': len(text), 'embedding_dim': len(embedding)}
+                extra={"model": model, "text_length": len(text), "embedding_dim": len(embedding)},
             )
             return embedding
 
@@ -225,7 +220,7 @@ def get_embedding(
             if fallback_to_mock:
                 logger.error(
                     "Ollama embedding failed, falling back to mock",
-                    extra={'error': str(e)[:200], 'model': model}
+                    extra={"error": str(e)[:200], "model": model},
                 )
                 return _generate_mock_embedding(text, dimensions=768)
             raise
@@ -247,7 +242,7 @@ def get_embedding(
 
         logger.debug(
             "Embedding generated successfully",
-            extra={'model': model, 'text_length': len(text), 'embedding_dim': len(embedding)}
+            extra={"model": model, "text_length": len(text), "embedding_dim": len(embedding)},
         )
         return embedding
 
@@ -275,7 +270,7 @@ def get_embedding(
                 pass
             logger.error(
                 "All embedding providers failed, using mock",
-                extra={'error': str(e)[:200], 'model': model}
+                extra={"error": str(e)[:200], "model": model},
             )
             return _generate_mock_embedding(text)
         else:
@@ -287,7 +282,7 @@ def batch_get_embeddings(
     model: str = "text-embedding-3-large",
     api_key: Optional[str] = None,
     use_cache: bool = True,
-    fallback_to_mock: bool = True
+    fallback_to_mock: bool = True,
 ) -> List[List[float]]:
     """
     Get embeddings for multiple texts in batch (with retry and caching).
@@ -323,10 +318,7 @@ def batch_get_embeddings(
                 api_key = validate_api_key(api_key, provider="OpenAI")
                 client = OpenAI(api_key=api_key)
 
-                response = client.embeddings.create(
-                    input=texts,
-                    model=model
-                )
+                response = client.embeddings.create(input=texts, model=model)
 
                 embeddings = [item.embedding for item in response.data]
 
@@ -337,8 +329,7 @@ def batch_get_embeddings(
                         _cache_put(ck, embedding)
 
                 logger.info(
-                    "Batch embeddings generated",
-                    extra={'count': len(texts), 'model': model}
+                    "Batch embeddings generated", extra={"count": len(texts), "model": model}
                 )
 
                 return embeddings
@@ -349,10 +340,7 @@ def batch_get_embeddings(
             )
 
     # Fallback to individual requests
-    return [
-        get_embedding(text, model, api_key, use_cache, fallback_to_mock)
-        for text in texts
-    ]
+    return [get_embedding(text, model, api_key, use_cache, fallback_to_mock) for text in texts]
 
 
 def clear_embedding_cache():
@@ -369,8 +357,4 @@ def get_cache_stats() -> Dict[str, int]:
     Returns:
         Dictionary with cache statistics
     """
-    return {
-        'size': len(_embedding_cache),
-        'max_size': _max_cache_size,
-        'enabled': _cache_enabled
-    }
+    return {"size": len(_embedding_cache), "max_size": _max_cache_size, "enabled": _cache_enabled}

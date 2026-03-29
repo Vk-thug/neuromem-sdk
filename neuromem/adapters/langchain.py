@@ -114,9 +114,7 @@ class NeuroMemChatMessageHistory(BaseChatMessageHistory):
         try:
             from neuromem.core.types import MemoryType
 
-            memories = self.neuromem.list(
-                memory_type=MemoryType.EPISODIC.value, limit=self.k
-            )
+            memories = self.neuromem.list(memory_type=MemoryType.EPISODIC.value, limit=self.k)
             messages: List[BaseMessage] = []
             for m in memories:
                 if "User:" in m.content and "Assistant:" in m.content:
@@ -168,9 +166,7 @@ def add_memory(chain: Runnable, neuromem: Any, k: int = 5) -> Runnable:
             self.memory = memory_retriever
             self.neuromem = nm
 
-        def invoke(
-            self, input: Dict[str, Any], config: Optional[RunnableConfig] = None
-        ) -> Any:
+        def invoke(self, input: Dict[str, Any], config: Optional[RunnableConfig] = None) -> Any:
             input_with_memory = self.memory.invoke(input, config)
             output = self.chain.invoke(input_with_memory, config)
             self._store_observation(input, output)
@@ -323,9 +319,7 @@ class NeuroMemLangChain:
             except Exception:
                 pass
 
-    async def astream_chat(
-        self, llm: Any, user_input: str, system_prompt: Optional[str] = None
-    ):
+    async def astream_chat(self, llm: Any, user_input: str, system_prompt: Optional[str] = None):
         """Async stream chat. Yields text chunks."""
         messages = self._build_messages(user_input, system_prompt)
         collected: List[str] = []
@@ -391,7 +385,11 @@ class LangChainMemoryAdapter:
         query = inputs.get(self.input_key, "")
         try:
             memories = self.neuromem.retrieve(query=query, task_type="chat", k=5)
-            context = "\n".join([f"- {m.content}" for m in memories]) if memories else "No relevant context."
+            context = (
+                "\n".join([f"- {m.content}" for m in memories])
+                if memories
+                else "No relevant context."
+            )
         except Exception:
             context = "No relevant context."
         return {self.memory_key: context}

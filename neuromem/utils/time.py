@@ -16,18 +16,18 @@ def ensure_utc(dt: datetime) -> datetime:
 def format_relative_time(dt: datetime) -> str:
     """
     Format a datetime as relative time (e.g., "2 hours ago").
-    
+
     Args:
         dt: Datetime to format
-    
+
     Returns:
         Relative time string
     """
     now = datetime.now(timezone.utc)
     delta = now - ensure_utc(dt)
-    
+
     seconds = delta.total_seconds()
-    
+
     if seconds < 60:
         return "just now"
     elif seconds < 3600:
@@ -50,32 +50,32 @@ def format_relative_time(dt: datetime) -> str:
 def parse_time_window(window: str) -> Optional[datetime]:
     """
     Parse a time window string to a datetime threshold.
-    
+
     Args:
         window: Time window (e.g., "1h", "2d", "1w", "1m")
-    
+
     Returns:
         Datetime threshold or None if invalid
     """
     now = datetime.now(timezone.utc)
-    
+
     if not window:
         return None
-    
+
     try:
         value = int(window[:-1])
         unit = window[-1].lower()
-        
-        if unit == 'h':
+
+        if unit == "h":
             return now - timedelta(hours=value)
-        elif unit == 'd':
+        elif unit == "d":
             return now - timedelta(days=value)
-        elif unit == 'w':
+        elif unit == "w":
             return now - timedelta(weeks=value)
-        elif unit == 'm':
+        elif unit == "m":
             return now - timedelta(days=value * 30)
         else:
             return None
-    
+
     except Exception:
         return None

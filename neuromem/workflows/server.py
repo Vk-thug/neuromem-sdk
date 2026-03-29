@@ -21,6 +21,7 @@ from typing import Any, List, Optional
 try:
     import inngest
     import inngest.fast_api
+
     INNGEST_AVAILABLE = True
 except ImportError:
     INNGEST_AVAILABLE = False
@@ -28,6 +29,7 @@ except ImportError:
 try:
     from fastapi import FastAPI
     from fastapi.responses import JSONResponse
+
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
@@ -128,9 +130,7 @@ def create_workflow_app(
         if data is None:
             data = {}
         try:
-            event_ids = client.send_sync(
-                inngest.Event(name=event_name, data=data)
-            )
+            event_ids = client.send_sync(inngest.Event(name=event_name, data=data))
             return {"status": "triggered", "event_name": event_name, "event_ids": event_ids}
         except Exception as e:
             return JSONResponse(

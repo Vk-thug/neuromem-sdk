@@ -21,19 +21,63 @@ logger = get_logger(__name__)
 # This runs during observe() so must be fast (<1ms).
 
 _STOP_ENTITIES = {
-    "I", "The", "A", "An", "My", "We", "Our", "He", "She", "They", "It",
-    "This", "That", "What", "Who", "Where", "When", "How", "Why", "Do",
-    "Does", "Did", "Is", "Are", "Was", "Were", "Has", "Have", "Had",
-    "Can", "Could", "Would", "Should", "Will", "May", "Might",
-    "Yes", "No", "Not", "Also", "But", "And", "Or", "If", "Then",
-    "User", "Assistant", "Memory", "Session", "Unknown",
+    "I",
+    "The",
+    "A",
+    "An",
+    "My",
+    "We",
+    "Our",
+    "He",
+    "She",
+    "They",
+    "It",
+    "This",
+    "That",
+    "What",
+    "Who",
+    "Where",
+    "When",
+    "How",
+    "Why",
+    "Do",
+    "Does",
+    "Did",
+    "Is",
+    "Are",
+    "Was",
+    "Were",
+    "Has",
+    "Have",
+    "Had",
+    "Can",
+    "Could",
+    "Would",
+    "Should",
+    "Will",
+    "May",
+    "Might",
+    "Yes",
+    "No",
+    "Not",
+    "Also",
+    "But",
+    "And",
+    "Or",
+    "If",
+    "Then",
+    "User",
+    "Assistant",
+    "Memory",
+    "Session",
+    "Unknown",
 }
 
 # Pattern: capitalized word not at sentence start, or two+ consecutive capitalized words
 _PROPER_NOUN_RE = re.compile(
     r"(?<=[.!?\n] )([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"  # After sentence boundary
-    r"|(?<=: )([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"        # After colon (Speaker: Name)
-    r"|(?<=\] )([A-Z][a-z]+)"                            # After ] bracket
+    r"|(?<=: )([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)"  # After colon (Speaker: Name)
+    r"|(?<=\] )([A-Z][a-z]+)"  # After ] bracket
 )
 
 
@@ -61,7 +105,11 @@ def extract_entities(text: str) -> List[str]:
             if i > 0:
                 prev = words[i - 1]
                 # After sentence boundary, colon, or bracket — likely a name
-                if prev.endswith((".", "!", "?", ":", "]", "\n")) or prev in ("Session", "User:", "Assistant:"):
+                if prev.endswith((".", "!", "?", ":", "]", "\n")) or prev in (
+                    "Session",
+                    "User:",
+                    "Assistant:",
+                ):
                     entities.add(clean)
                 # Two consecutive capitalized words — likely a name
                 elif prev.strip(",.!?:;\"'()[]") not in _STOP_ENTITIES and prev[0:1].isupper():

@@ -61,9 +61,11 @@ class QdrantStorage:
         payload = {
             "user_id": item.user_id,
             "content": item.content,
-            "memory_type": item.memory_type.value
-            if isinstance(item.memory_type, MemoryType)
-            else item.memory_type,
+            "memory_type": (
+                item.memory_type.value
+                if isinstance(item.memory_type, MemoryType)
+                else item.memory_type
+            ),
             "salience": item.salience,
             "confidence": item.confidence,
             "created_at": item.created_at.isoformat() if item.created_at else None,

@@ -11,6 +11,7 @@ from typing import List
 
 class ValidationError(Exception):
     """Raised when validation fails."""
+
     pass
 
 
@@ -125,9 +126,7 @@ def validate_memory_type(memory_type: str) -> str:
         raise ValidationError(f"memory_type must be a string, got {type(memory_type)}")
 
     if memory_type.lower() not in allowed_types:
-        raise ValidationError(
-            f"memory_type must be one of {allowed_types}, got: {memory_type}"
-        )
+        raise ValidationError(f"memory_type must be one of {allowed_types}, got: {memory_type}")
 
     return memory_type.lower()
 
@@ -208,38 +207,45 @@ def validate_filters(filters: dict) -> dict:
         raise ValidationError(f"filters must be a dict, got {type(filters)}")
 
     # Whitelist of allowed filter keys
-    allowed_keys = {'user_id', 'memory_type', 'tags', 'salience_min', 'salience_max',
-                    'confidence_min', 'confidence_max', 'created_after', 'created_before'}
+    allowed_keys = {
+        "user_id",
+        "memory_type",
+        "tags",
+        "salience_min",
+        "salience_max",
+        "confidence_min",
+        "confidence_max",
+        "created_after",
+        "created_before",
+    }
 
     # Check for disallowed keys
     invalid_keys = set(filters.keys()) - allowed_keys
     if invalid_keys:
-        raise ValidationError(
-            f"Invalid filter keys: {invalid_keys}. Allowed keys: {allowed_keys}"
-        )
+        raise ValidationError(f"Invalid filter keys: {invalid_keys}. Allowed keys: {allowed_keys}")
 
     # Validate each filter value
     validated = {}
 
-    if 'user_id' in filters:
-        validated['user_id'] = validate_user_id(filters['user_id'])
+    if "user_id" in filters:
+        validated["user_id"] = validate_user_id(filters["user_id"])
 
-    if 'memory_type' in filters:
-        mt = filters['memory_type']
+    if "memory_type" in filters:
+        mt = filters["memory_type"]
         if isinstance(mt, str):
-            validated['memory_type'] = validate_memory_type(mt)
+            validated["memory_type"] = validate_memory_type(mt)
         elif isinstance(mt, list):
-            validated['memory_type'] = [validate_memory_type(t) for t in mt]
+            validated["memory_type"] = [validate_memory_type(t) for t in mt]
         else:
             raise ValidationError(f"memory_type must be str or list, got {type(mt)}")
 
-    if 'tags' in filters:
-        if not isinstance(filters['tags'], list):
+    if "tags" in filters:
+        if not isinstance(filters["tags"], list):
             raise ValidationError(f"tags must be a list, got {type(filters['tags'])}")
-        validated['tags'] = filters['tags']
+        validated["tags"] = filters["tags"]
 
     # Validate numeric ranges
-    for key in ['salience_min', 'salience_max', 'confidence_min', 'confidence_max']:
+    for key in ["salience_min", "salience_max", "confidence_min", "confidence_max"]:
         if key in filters:
             val = filters[key]
             if not isinstance(val, (int, float)):
@@ -249,7 +255,7 @@ def validate_filters(filters: dict) -> dict:
             validated[key] = val
 
     # Validate date filters
-    for key in ['created_after', 'created_before']:
+    for key in ["created_after", "created_before"]:
         if key in filters:
             validated[key] = filters[key]  # Assume datetime objects are validated elsewhere
 
@@ -273,7 +279,7 @@ def sanitize_sql_string(value: str) -> str:
         raise ValidationError(f"Expected string, got {type(value)}")
 
     # Remove or escape dangerous SQL characters
-    dangerous_chars = ["'", '"', ';', '--', '/*', '*/','xp_', 'sp_', 'DROP', 'DELETE', 'INSERT']
+    dangerous_chars = ["'", '"', ";", "--", "/*", "*/", "xp_", "sp_", "DROP", "DELETE", "INSERT"]
 
     sanitized = value
     for char in dangerous_chars:

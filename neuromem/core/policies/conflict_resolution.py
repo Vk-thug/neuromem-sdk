@@ -10,23 +10,23 @@ from typing import Tuple
 
 class ConflictResolver:
     """Resolves conflicts between contradicting memories"""
-    
+
     def __init__(self, config: dict = None):
         config = config or {}
-        self.recency_weight = config.get('conflict_recency_weight', 0.4)
-        self.confidence_weight = config.get('conflict_confidence_weight', 0.3)
-        self.reinforcement_weight = config.get('conflict_reinforcement_weight', 0.3)
-    
+        self.recency_weight = config.get("conflict_recency_weight", 0.4)
+        self.confidence_weight = config.get("conflict_confidence_weight", 0.3)
+        self.reinforcement_weight = config.get("conflict_reinforcement_weight", 0.3)
+
     def detect_conflict(self, mem1: MemoryItem, mem2: MemoryItem) -> bool:
         """
         Detect if two memories conflict.
-        
+
         This is a placeholder. In production, use LLM to detect semantic conflicts.
-        
+
         Args:
             mem1: First memory
             mem2: Second memory
-            
+
         Returns:
             True if memories conflict
         """
@@ -37,12 +37,14 @@ class ConflictResolver:
 
         stop_words = constants.RETRIEVAL_STOP_WORDS
         words1 = {
-            w.strip(_string.punctuation) for w in user1.split()
+            w.strip(_string.punctuation)
+            for w in user1.split()
             if w.strip(_string.punctuation) not in stop_words
             and len(w.strip(_string.punctuation)) > 2
         }
         words2 = {
-            w.strip(_string.punctuation) for w in user2.split()
+            w.strip(_string.punctuation)
+            for w in user2.split()
             if w.strip(_string.punctuation) not in stop_words
             and len(w.strip(_string.punctuation)) > 2
         }
@@ -56,62 +58,73 @@ class ConflictResolver:
             return False
 
         negation_words = {
-            "not", "never", "don't", "doesn't", "isn't", "aren't",
-            "won't", "hate", "dislike", "switched", "no longer", "stop", "quit",
+            "not",
+            "never",
+            "don't",
+            "doesn't",
+            "isn't",
+            "aren't",
+            "won't",
+            "hate",
+            "dislike",
+            "switched",
+            "no longer",
+            "stop",
+            "quit",
         }
         neg1 = any(f" {w} " in f" {user1} " for w in negation_words)
         neg2 = any(f" {w} " in f" {user2} " for w in negation_words)
 
         return neg1 != neg2
-    
+
     def resolve(self, mem1: MemoryItem, mem2: MemoryItem) -> Tuple[MemoryItem, MemoryItem]:
         """
         Resolve conflict between two memories.
-        
+
         Prefers:
         - Newer memories
         - Higher confidence
         - More reinforced
-        
+
         Args:
             mem1: First memory
             mem2: Second memory
-            
+
         Returns:
             Tuple of (preferred_memory, deprecated_memory)
         """
         score1 = self._calculate_preference_score(mem1, mem2)
         score2 = self._calculate_preference_score(mem2, mem1)
-        
+
         if score1 > score2:
             # mem1 is preferred
-            mem2.metadata['deprecated'] = True
-            mem2.metadata['superseded_by'] = mem1.id
-            mem2.metadata['deprecation_reason'] = 'conflict_resolution'
+            mem2.metadata["deprecated"] = True
+            mem2.metadata["superseded_by"] = mem1.id
+            mem2.metadata["deprecation_reason"] = "conflict_resolution"
             return (mem1, mem2)
         else:
             # mem2 is preferred
-            mem1.metadata['deprecated'] = True
-            mem1.metadata['superseded_by'] = mem2.id
-            mem1.metadata['deprecation_reason'] = 'conflict_resolution'
+            mem1.metadata["deprecated"] = True
+            mem1.metadata["superseded_by"] = mem2.id
+            mem1.metadata["deprecation_reason"] = "conflict_resolution"
             return (mem2, mem1)
-    
+
     def _calculate_preference_score(self, mem: MemoryItem, other: MemoryItem) -> float:
         """Calculate preference score for a memory"""
         # Recency score
         recency_score = 1.0 if mem.created_at > other.created_at else 0.0
-        
+
         # Confidence score (normalized)
         confidence_score = mem.confidence
-        
+
         # Reinforcement score (capped at 10)
         reinforcement_score = min(mem.reinforcement / 10.0, 1.0)
-        
+
         # Weighted sum
         score = (
-            self.recency_weight * recency_score +
-            self.confidence_weight * confidence_score +
-            self.reinforcement_weight * reinforcement_score
+            self.recency_weight * recency_score
+            + self.confidence_weight * confidence_score
+            + self.reinforcement_weight * reinforcement_score
         )
-        
+
         return score

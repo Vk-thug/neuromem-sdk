@@ -27,10 +27,10 @@ logger = get_logger(__name__)
 
 # Operator patterns
 _OPERATOR_RE = re.compile(
-    r'(type|tag|confidence|salience|after|before|intent|sentiment|source):(\S+)'
+    r"(type|tag|confidence|salience|after|before|intent|sentiment|source):(\S+)"
 )
 _QUOTED_RE = re.compile(r'"([^"]+)"')
-_NUMERIC_CMP_RE = re.compile(r'^([><]=?)?(\d+\.?\d*)$')
+_NUMERIC_CMP_RE = re.compile(r"^([><]=?)?(\d+\.?\d*)$")
 
 
 class MemoryQuery:
@@ -132,7 +132,11 @@ class MemoryQuery:
         """
         # Type filter
         if "memory_type" in self.filters:
-            mem_type = memory.memory_type.value if hasattr(memory.memory_type, "value") else str(memory.memory_type)
+            mem_type = (
+                memory.memory_type.value
+                if hasattr(memory.memory_type, "value")
+                else str(memory.memory_type)
+            )
             if mem_type != self.filters["memory_type"]:
                 return False
 
@@ -144,12 +148,16 @@ class MemoryQuery:
 
         # Confidence filter
         if "confidence_op" in self.filters:
-            if not self._compare(memory.confidence, self.filters["confidence_op"], self.filters["confidence_val"]):
+            if not self._compare(
+                memory.confidence, self.filters["confidence_op"], self.filters["confidence_val"]
+            ):
                 return False
 
         # Salience filter
         if "salience_op" in self.filters:
-            if not self._compare(memory.salience, self.filters["salience_op"], self.filters["salience_val"]):
+            if not self._compare(
+                memory.salience, self.filters["salience_op"], self.filters["salience_val"]
+            ):
                 return False
 
         # Date filters

@@ -11,13 +11,15 @@ from typing import Any
 import json
 from datetime import datetime, timezone
 
-
 # PII patterns to redact
 PII_PATTERNS = [
-    (re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'), '[EMAIL_REDACTED]'),  # Email
-    (re.compile(r'\b\d{3}-\d{2}-\d{4}\b'), '[SSN_REDACTED]'),  # SSN
-    (re.compile(r'\b\d{3}-\d{3}-\d{4}\b'), '[PHONE_REDACTED]'),  # Phone
-    (re.compile(r'\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b'), '[CARD_REDACTED]'),  # Credit card
+    (
+        re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
+        "[EMAIL_REDACTED]",
+    ),  # Email
+    (re.compile(r"\b\d{3}-\d{2}-\d{4}\b"), "[SSN_REDACTED]"),  # SSN
+    (re.compile(r"\b\d{3}-\d{3}-\d{4}\b"), "[PHONE_REDACTED]"),  # Phone
+    (re.compile(r"\b\d{4}[- ]?\d{4}[- ]?\d{4}[- ]?\d{4}\b"), "[CARD_REDACTED]"),  # Credit card
 ]
 
 
@@ -37,26 +39,26 @@ class JSONFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         log_data = {
-            'timestamp': datetime.now(timezone.utc).isoformat(),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
         }
 
         # Add extra fields
-        if hasattr(record, 'user_id'):
-            log_data['user_id'] = record.user_id
-        if hasattr(record, 'trace_id'):
-            log_data['trace_id'] = record.trace_id
-        if hasattr(record, 'task_type'):
-            log_data['task_type'] = record.task_type
+        if hasattr(record, "user_id"):
+            log_data["user_id"] = record.user_id
+        if hasattr(record, "trace_id"):
+            log_data["trace_id"] = record.trace_id
+        if hasattr(record, "task_type"):
+            log_data["task_type"] = record.task_type
 
         # Add exception info if present
         if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
+            log_data["exception"] = self.formatException(record.exc_info)
 
         # Redact PII
         msg_str = json.dumps(log_data)
@@ -99,8 +101,7 @@ def get_logger(name: str, json_format: bool = False, level: int = logging.INFO) 
         formatter = JSONFormatter()
     else:
         formatter = PIIRedactingFormatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
         )
 
     handler.setFormatter(formatter)
@@ -138,4 +139,4 @@ def sanitize_for_logging(data: Any) -> Any:
 
 
 # Default logger for the SDK
-default_logger = get_logger('core')
+default_logger = get_logger("core")

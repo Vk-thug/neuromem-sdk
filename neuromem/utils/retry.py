@@ -12,11 +12,12 @@ from neuromem.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 class CircuitBreakerError(Exception):
     """Raised when circuit breaker is open."""
+
     pass
 
 
@@ -31,10 +32,7 @@ class CircuitBreaker:
     """
 
     def __init__(
-        self,
-        failure_threshold: int = 5,
-        recovery_timeout: float = 60.0,
-        name: str = "default"
+        self, failure_threshold: int = 5, recovery_timeout: float = 60.0, name: str = "default"
     ):
         """
         Initialize circuit breaker.
@@ -106,7 +104,7 @@ class CircuitBreaker:
             self.state = "OPEN"
             logger.error(
                 f"Circuit breaker {self.name}: Opened after {self.failure_count} failures",
-                extra={'threshold': self.failure_threshold}
+                extra={"threshold": self.failure_threshold},
             )
 
 
@@ -116,7 +114,7 @@ def retry_with_exponential_backoff(
     max_delay: float = 60.0,
     exponential_base: float = 2.0,
     jitter: bool = True,
-    circuit_breaker: Optional[CircuitBreaker] = None
+    circuit_breaker: Optional[CircuitBreaker] = None,
 ):
     """
     Decorator for retrying functions with exponential backoff.
@@ -134,15 +132,14 @@ def retry_with_exponential_backoff(
         def call_api():
             return requests.get("https://api.example.com")
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
             # If circuit breaker is open, fail fast
             if circuit_breaker and circuit_breaker.state == "OPEN":
                 if not circuit_breaker._should_attempt_reset():
-                    raise CircuitBreakerError(
-                        f"Circuit breaker {circuit_breaker.name} is OPEN"
-                    )
+                    raise CircuitBreakerError(f"Circuit breaker {circuit_breaker.name} is OPEN")
 
             last_exception = None
 
@@ -156,7 +153,7 @@ def retry_with_exponential_backoff(
                     if attempt > 0:
                         logger.info(
                             f"Retry successful for {func.__name__}",
-                            extra={'attempt': attempt, 'max_retries': max_retries}
+                            extra={"attempt": attempt, "max_retries": max_retries},
                         )
                     return result
 
@@ -167,13 +164,13 @@ def retry_with_exponential_backoff(
                     if not _is_retryable_error(e):
                         logger.error(
                             f"Non-retryable error in {func.__name__}: {type(e).__name__}",
-                            exc_info=True
+                            exc_info=True,
                         )
                         raise
 
                     if attempt < max_retries:
                         # Calculate delay with exponential backoff
-                        delay = min(base_delay * (exponential_base ** attempt), max_delay)
+                        delay = min(base_delay * (exponential_base**attempt), max_delay)
 
                         # Add jitter to prevent thundering herd
                         if jitter:
@@ -182,7 +179,11 @@ def retry_with_exponential_backoff(
                         logger.warning(
                             f"Retry {attempt + 1}/{max_retries} for {func.__name__} "
                             f"after {delay:.2f}s delay. Error: {str(e)[:100]}",
-                            extra={'attempt': attempt, 'delay': delay, 'error_type': type(e).__name__}
+                            extra={
+                                "attempt": attempt,
+                                "delay": delay,
+                                "error_type": type(e).__name__,
+                            },
                         )
 
                         time.sleep(delay)
@@ -190,13 +191,14 @@ def retry_with_exponential_backoff(
                         logger.error(
                             f"Max retries ({max_retries}) exceeded for {func.__name__}",
                             exc_info=True,
-                            extra={'max_retries': max_retries}
+                            extra={"max_retries": max_retries},
                         )
 
             # All retries exhausted
             raise last_exception
 
         return wrapper
+
     return decorator
 
 
@@ -218,20 +220,20 @@ def _is_retryable_error(error: Exception) -> bool:
     error_msg = str(error).lower()
 
     # OpenAI specific errors
-    if 'RateLimitError' in error_type or 'rate_limit' in error_msg or '429' in error_msg:
+    if "RateLimitError" in error_type or "rate_limit" in error_msg or "429" in error_msg:
         return True
 
-    if 'APIConnectionError' in error_type or 'connection' in error_msg:
+    if "APIConnectionError" in error_type or "connection" in error_msg:
         return True
 
-    if 'Timeout' in error_type or 'timeout' in error_msg:
+    if "Timeout" in error_type or "timeout" in error_msg:
         return True
 
-    if 'APIError' in error_type or '500' in error_msg or '502' in error_msg or '503' in error_msg:
+    if "APIError" in error_type or "500" in error_msg or "502" in error_msg or "503" in error_msg:
         return True
 
     # HTTP client errors (non-retryable)
-    if any(code in error_msg for code in ['400', '401', '403', '404', '422']):
+    if any(code in error_msg for code in ["400", "401", "403", "404", "422"]):
         return False
 
     # By default, retry on unknown errors (defensive)
@@ -268,7 +270,7 @@ def validate_api_key(api_key: Optional[str], provider: str = "OpenAI") -> str:
     if provider == "OpenAI" and not api_key.startswith("sk-"):
         logger.warning(
             f"{provider} API key does not start with 'sk-'. This may indicate an invalid key.",
-            extra={'key_prefix': api_key[:3]}
+            extra={"key_prefix": api_key[:3]},
         )
 
     return api_key

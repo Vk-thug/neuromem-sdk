@@ -10,6 +10,7 @@ from typing import Optional, List, Any
 
 try:
     import inngest
+
     INNGEST_AVAILABLE = True
 except ImportError:
     INNGEST_AVAILABLE = False

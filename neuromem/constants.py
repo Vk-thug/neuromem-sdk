@@ -55,7 +55,9 @@ DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3
 DEFAULT_KEYWORD_BOOST = 0.2  # Boost for memories containing exact query keywords
 
 # Diversity/Inhibition
-DEFAULT_DIVERSITY_THRESHOLD = 0.75  # Similarity threshold for inhibition (lower = more diverse results)
+DEFAULT_DIVERSITY_THRESHOLD = (
+    0.75  # Similarity threshold for inhibition (lower = more diverse results)
+)
 
 # Memory Retention
 DEFAULT_EPISODIC_RETENTION_DAYS = 30
@@ -161,17 +163,62 @@ MAX_LIMIT_VALUE = 1000
 
 # Preference Keywords for Salience Calculation
 PREFERENCE_KEYWORDS = [
-    "prefer", "like", "want", "need", "always", "never",
-    "favorite", "hate", "love", "dislike", "usually", "typically"
+    "prefer",
+    "like",
+    "want",
+    "need",
+    "always",
+    "never",
+    "favorite",
+    "hate",
+    "love",
+    "dislike",
+    "usually",
+    "typically",
 ]
 
 # Stop words for keyword matching (shared by controller._keyword_fallback and retrieval.boost_keyword_matches)
-RETRIEVAL_STOP_WORDS = frozenset({
-    "what", "who", "where", "when", "how", "is", "are", "do", "does",
-    "the", "a", "an", "my", "i", "me", "we", "our", "and", "or",
-    "for", "to", "in", "on", "at", "of", "use", "prefer", "about",
-    "did", "was", "were", "been", "have", "has", "with", "that", "this",
-})
+RETRIEVAL_STOP_WORDS = frozenset(
+    {
+        "what",
+        "who",
+        "where",
+        "when",
+        "how",
+        "is",
+        "are",
+        "do",
+        "does",
+        "the",
+        "a",
+        "an",
+        "my",
+        "i",
+        "me",
+        "we",
+        "our",
+        "and",
+        "or",
+        "for",
+        "to",
+        "in",
+        "on",
+        "at",
+        "of",
+        "use",
+        "prefer",
+        "about",
+        "did",
+        "was",
+        "were",
+        "been",
+        "have",
+        "has",
+        "with",
+        "that",
+        "this",
+    }
+)
 
 # Memory Links
 DEFAULT_LINK_SIMILARITY_THRESHOLD = 0.7

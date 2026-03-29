@@ -73,14 +73,10 @@ class MemoryController:
         self.graph = MemoryGraph()
 
         # Conflict resolver -- always active
-        self.conflict_resolver = ConflictResolver(
-            self._get_dict_config("conflict_resolution")
-        )
+        self.conflict_resolver = ConflictResolver(self._get_dict_config("conflict_resolution"))
 
         # Reconsolidation policy -- always active
-        self.reconsolidation_policy = ReconsolidationPolicy(
-            self._get_dict_config("proactive")
-        )
+        self.reconsolidation_policy = ReconsolidationPolicy(self._get_dict_config("proactive"))
 
         # Async infrastructure
         self.async_enabled = self._get_dict_config("async").get("enabled", True)
@@ -105,11 +101,14 @@ class MemoryController:
             try:
                 if self.config.tagging().get("auto_tag_enabled", False):
                     from neuromem.utils.auto_tagger import AutoTagger
+
                     self.auto_tagger = AutoTagger(
                         llm_model=self.config.model().get("consolidation_llm", "gpt-4o-mini")
                     )
             except Exception as e:
-                logger.warning("Failed to initialize AutoTagger", exc_info=True, extra={"error": str(e)})
+                logger.warning(
+                    "Failed to initialize AutoTagger", exc_info=True, extra={"error": str(e)}
+                )
                 self.auto_tagger = None
 
     def _get_dict_config(self, key: str) -> dict:
@@ -175,6 +174,7 @@ class MemoryController:
         if use_hybrid:
             try:
                 from neuromem.memory.hybrid_retrieval import HybridRetrieval
+
                 rc = self.config.retrieval()
                 hr = HybridRetrieval(
                     recency_weight=rc.get("recency_weight", 0.2),
@@ -199,8 +199,7 @@ class MemoryController:
 
         # Build O(1) lookup for similarity scores (replaces O(n) list.index per item)
         item_sim_map: Dict[str, float] = {
-            item.id: all_sims[i] if i < len(all_sims) else 0.0
-            for i, item in enumerate(all_items)
+            item.id: all_sims[i] if i < len(all_sims) else 0.0 for i, item in enumerate(all_items)
         }
 
         # Reinforce + reconsolidate
@@ -261,13 +260,15 @@ class MemoryController:
                         top_items[i], top_items[j]
                     )
                     deprecated_ids.add(deprecated.id)
-                    self.graph.add_link(MemoryLink(
-                        source_id=preferred.id,
-                        target_id=deprecated.id,
-                        link_type="contradicts",
-                        strength=1.0,
-                        created_at=datetime.now(timezone.utc),
-                    ))
+                    self.graph.add_link(
+                        MemoryLink(
+                            source_id=preferred.id,
+                            target_id=deprecated.id,
+                            link_type="contradicts",
+                            strength=1.0,
+                            created_at=datetime.now(timezone.utc),
+                        )
+                    )
                     logger.info(
                         "Conflict resolved",
                         extra={"preferred": preferred.id, "deprecated": deprecated.id},
@@ -285,13 +286,19 @@ class MemoryController:
         """Observe and store a user-assistant interaction."""
         user_id = validate_user_id(user_id)
         user_input = validate_content(user_input, max_length=50000, field_name="user_input")
-        assistant_output = validate_content(assistant_output, max_length=50000, field_name="assistant_output")
+        assistant_output = validate_content(
+            assistant_output, max_length=50000, field_name="assistant_output"
+        )
 
         if self.async_enabled:
             task = Task(
                 task_type=TaskType.OBSERVE,
                 priority=TaskPriority.CRITICAL,
-                data={"user_input": user_input, "assistant_output": assistant_output, "user_id": user_id},
+                data={
+                    "user_input": user_input,
+                    "assistant_output": assistant_output,
+                    "user_id": user_id,
+                },
                 created_at=datetime.now(timezone.utc),
                 salience=self._calculate_salience(user_input, assistant_output),
                 trace_id=None,
@@ -310,10 +317,17 @@ class MemoryController:
         tags = []
         metadata = {}
 
-        if self.config and hasattr(self.config, "tagging") and self.config.tagging().get("auto_tag_enabled", False):
+        if (
+            self.config
+            and hasattr(self.config, "tagging")
+            and self.config.tagging().get("auto_tag_enabled", False)
+        ):
             try:
                 from neuromem.utils.auto_tagger import AutoTagger
-                tagger = AutoTagger(llm_model=self.config.model().get("consolidation_llm", "gpt-4o-mini"))
+
+                tagger = AutoTagger(
+                    llm_model=self.config.model().get("consolidation_llm", "gpt-4o-mini")
+                )
                 enrichment = tagger.enrich_memory(content)
                 tags = enrichment.get("tags", [])
                 metadata = {
@@ -382,7 +396,11 @@ class MemoryController:
                 for memory, emb in zip(needs_embedding, embeddings):
                     memory.embedding = emb
             except Exception as e:
-                logger.error("Batch embedding failed for consolidation", exc_info=True, extra={"error": str(e)})
+                logger.error(
+                    "Batch embedding failed for consolidation",
+                    exc_info=True,
+                    extra={"error": str(e)},
+                )
                 # Fall back to individual embedding
                 for memory in needs_embedding:
                     try:
@@ -397,20 +415,30 @@ class MemoryController:
                 memory.memory_type = MemoryType.SEMANTIC
             self.semantic.store(memory)
             for src_id in source_ids:
-                self.graph.add_link(MemoryLink(
-                    source_id=memory.id, target_id=src_id,
-                    link_type="derived_from", strength=0.8, created_at=datetime.now(timezone.utc),
-                ))
+                self.graph.add_link(
+                    MemoryLink(
+                        source_id=memory.id,
+                        target_id=src_id,
+                        link_type="derived_from",
+                        strength=0.8,
+                        created_at=datetime.now(timezone.utc),
+                    )
+                )
 
         for memory in result.new_procedural_memories:
             if not memory.embedding:
                 continue
             self.procedural.store(memory)
             for src_id in source_ids:
-                self.graph.add_link(MemoryLink(
-                    source_id=memory.id, target_id=src_id,
-                    link_type="derived_from", strength=0.8, created_at=datetime.now(timezone.utc),
-                ))
+                self.graph.add_link(
+                    MemoryLink(
+                        source_id=memory.id,
+                        target_id=src_id,
+                        link_type="derived_from",
+                        strength=0.8,
+                        created_at=datetime.now(timezone.utc),
+                    )
+                )
 
         active, forgotten = self.decay_engine.apply_decay(episodic_items)
         for item in forgotten:
@@ -453,11 +481,16 @@ class MemoryController:
             "retention_days": self.decay_engine.get_retention_period(memory),
             "graph": {
                 "link_count": len(links),
-                "links": [{"target": link.target_id, "type": link.link_type, "strength": link.strength} for link in links[:10]],
+                "links": [
+                    {"target": link.target_id, "type": link.link_type, "strength": link.strength}
+                    for link in links[:10]
+                ],
             },
             "retrieval_stats": {
                 "count": memory.retrieval_stats.retrieval_count if memory.retrieval_stats else 0,
-                "avg_similarity": memory.retrieval_stats.avg_similarity if memory.retrieval_stats else 0.0,
+                "avg_similarity": (
+                    memory.retrieval_stats.avg_similarity if memory.retrieval_stats else 0.0
+                ),
             },
         }
 
@@ -484,7 +517,9 @@ class MemoryController:
     # TAG QUERIES
     # ----------------------------------------------------------------
 
-    def find_by_tags(self, tag_prefix: str, memory_type: Optional[str] = None, limit: int = 50) -> List[MemoryItem]:
+    def find_by_tags(
+        self, tag_prefix: str, memory_type: Optional[str] = None, limit: int = 50
+    ) -> List[MemoryItem]:
         """Find memories matching a tag prefix (hierarchical)."""
         all_memories = self.list_memories(memory_type, limit=limit * 3)
         return [m for m in all_memories if any(t.startswith(tag_prefix) for t in m.tags)][:limit]
@@ -502,14 +537,22 @@ class MemoryController:
     # TEMPORAL QUERIES
     # ----------------------------------------------------------------
 
-    def get_memories_by_date(self, date: datetime, memory_type: Optional[str] = None) -> List[MemoryItem]:
+    def get_memories_by_date(
+        self, date: datetime, memory_type: Optional[str] = None
+    ) -> List[MemoryItem]:
         start = datetime(date.year, date.month, date.day, tzinfo=timezone.utc)
         end = start + timedelta(days=1)
         return self.get_memories_in_range(start, end, memory_type)
 
-    def get_memories_in_range(self, start: datetime, end: datetime, memory_type: Optional[str] = None) -> List[MemoryItem]:
+    def get_memories_in_range(
+        self, start: datetime, end: datetime, memory_type: Optional[str] = None
+    ) -> List[MemoryItem]:
         all_memories = self.list_memories(memory_type, limit=1000)
-        return [m for m in all_memories if ensure_utc(start) <= ensure_utc(m.created_at) < ensure_utc(end)]
+        return [
+            m
+            for m in all_memories
+            if ensure_utc(start) <= ensure_utc(m.created_at) < ensure_utc(end)
+        ]
 
     # ----------------------------------------------------------------
     # MULTI-HOP QUERY DECOMPOSITION
@@ -528,8 +571,17 @@ class MemoryController:
         query_lower = query.lower()
 
         # Pattern 1: explicit multi-entity markers
-        multi_markers = ["both", "and also", "as well as", "compared to", "difference between",
-                         "similarities between", "in common", "versus", " vs "]
+        multi_markers = [
+            "both",
+            "and also",
+            "as well as",
+            "compared to",
+            "difference between",
+            "similarities between",
+            "in common",
+            "versus",
+            " vs ",
+        ]
         if any(marker in query_lower for marker in multi_markers):
             return True
 
@@ -537,16 +589,24 @@ class MemoryController:
         # Simple "when did X" queries are NOT multi-hop — they are direct lookups.
         # Only route to multi-hop when the temporal aspect requires combining info.
         compound_temporal_markers = [
-            "what changed", "over time", "between session",
-            "how long has", "how long have", "how long did",
-            "since when", "timeline",
+            "what changed",
+            "over time",
+            "between session",
+            "how long has",
+            "how long have",
+            "how long did",
+            "since when",
+            "timeline",
         ]
         if any(m in query_lower for m in compound_temporal_markers):
             return True
 
         # Pattern 3: "how do X and Y" / "what did X and Y"
         import re
-        if re.search(r"\b(how|what|where|when|why|do|did|does|have|has)\b.+\band\b.+\?", query_lower):
+
+        if re.search(
+            r"\b(how|what|where|when|why|do|did|does|have|has)\b.+\band\b.+\?", query_lower
+        ):
             # Check if "and" connects two capitalized words (proper nouns)
             words = query.split()
             and_indices = [i for i, w in enumerate(words) if w.lower() == "and"]
@@ -570,6 +630,7 @@ class MemoryController:
         """
         try:
             import openai
+
             client = openai.OpenAI()
 
             prompt = (
@@ -598,7 +659,9 @@ class MemoryController:
                 return sub_queries
             return [query]
         except Exception as e:
-            logger.warning("Query decomposition failed, using original query", extra={"error": str(e)})
+            logger.warning(
+                "Query decomposition failed, using original query", extra={"error": str(e)}
+            )
             return [query]
 
     def retrieve_multihop(
@@ -623,16 +686,24 @@ class MemoryController:
         """
         if not self._is_multi_hop_query(query):
             return self.retrieve(
-                embedding, task_type, k, parallel=parallel,
-                query_text=query, expand_context=expand_context,
+                embedding,
+                task_type,
+                k,
+                parallel=parallel,
+                query_text=query,
+                expand_context=expand_context,
             )
 
         sub_queries = self._decompose_query(query)
 
         if len(sub_queries) <= 1:
             return self.retrieve(
-                embedding, task_type, k, parallel=parallel,
-                query_text=query, expand_context=expand_context,
+                embedding,
+                task_type,
+                k,
+                parallel=parallel,
+                query_text=query,
+                expand_context=expand_context,
             )
 
         # Cap at 3 sub-queries to limit latency (each adds ~500ms for embedding + retrieval)
@@ -647,8 +718,11 @@ class MemoryController:
         for sub_q in sub_queries:
             sub_embedding = get_embedding(sub_q, self.embedding_model)
             results = self.retrieve(
-                sub_embedding, task_type, per_query_k,
-                parallel=parallel, query_text=sub_q,
+                sub_embedding,
+                task_type,
+                per_query_k,
+                parallel=parallel,
+                query_text=sub_q,
                 expand_context=expand_context,
             )
             sub_query_results[sub_q] = results
@@ -681,8 +755,11 @@ class MemoryController:
         # Only fetch original query results if sub-queries didn't fill k slots.
         if len(all_results) < k:
             original_results = self.retrieve(
-                embedding, task_type, k - len(all_results),
-                parallel=parallel, query_text=query,
+                embedding,
+                task_type,
+                k - len(all_results),
+                parallel=parallel,
+                query_text=query,
                 expand_context=expand_context,
             )
             for item in original_results:
@@ -708,8 +785,10 @@ class MemoryController:
         semantic similarity fails, direct association rescues it.
         """
         import string as _string
+
         keywords = [
-            w.lower().strip(_string.punctuation) for w in query_text.split()
+            w.lower().strip(_string.punctuation)
+            for w in query_text.split()
             if w.lower().strip(_string.punctuation) not in constants.RETRIEVAL_STOP_WORDS
             and len(w.strip(_string.punctuation)) > 2
         ]
@@ -768,7 +847,28 @@ class MemoryController:
         if not query_entities:
             # Fall back to simple word matching against entity index
             words = [w.strip("?.,!") for w in query_text.split() if w[0:1].isupper() and len(w) > 2]
-            query_entities = [w for w in words if w not in {"What", "Who", "Where", "When", "How", "Why", "The", "Did", "Does", "Do", "Which", "Has", "Have", "Is", "Are"}]
+            query_entities = [
+                w
+                for w in words
+                if w
+                not in {
+                    "What",
+                    "Who",
+                    "Where",
+                    "When",
+                    "How",
+                    "Why",
+                    "The",
+                    "Did",
+                    "Does",
+                    "Do",
+                    "Which",
+                    "Has",
+                    "Have",
+                    "Is",
+                    "Are",
+                }
+            ]
 
         if not query_entities:
             return []
@@ -820,9 +920,16 @@ class MemoryController:
         sem_i, sem_s, proc_i, proc_s, epi_i, epi_s = [], [], [], [], [], []
         executor = self._retrieval_pool
         futures = {
-            executor.submit(self.semantic.retrieve, embedding, {"memory_type": [MemoryType.SEMANTIC.value, MemoryType.PROCEDURAL.value]}, k * 2): "semantic",
+            executor.submit(
+                self.semantic.retrieve,
+                embedding,
+                {"memory_type": [MemoryType.SEMANTIC.value, MemoryType.PROCEDURAL.value]},
+                k * 2,
+            ): "semantic",
             executor.submit(self.procedural.retrieve, embedding, {}, k): "procedural",
-            executor.submit(self.episodic.retrieve, embedding, {"memory_type": MemoryType.EPISODIC.value}, k): "episodic",
+            executor.submit(
+                self.episodic.retrieve, embedding, {"memory_type": MemoryType.EPISODIC.value}, k
+            ): "episodic",
         }
         for future in as_completed(futures):
             mt = futures[future]
@@ -835,13 +942,21 @@ class MemoryController:
                 elif mt == "episodic":
                     epi_i, epi_s = items, sims
             except Exception as e:
-                logger.error(f"Parallel retrieval failed for {mt}", exc_info=True, extra={"error": str(e)})
+                logger.error(
+                    f"Parallel retrieval failed for {mt}", exc_info=True, extra={"error": str(e)}
+                )
         return sem_i, sem_s, proc_i, proc_s, epi_i, epi_s
 
     def _retrieve_sequential(self, embedding: List[float], k: int):
-        sem_i, sem_s = self.semantic.retrieve(embedding, {"memory_type": [MemoryType.SEMANTIC.value, MemoryType.PROCEDURAL.value]}, k * 2)
+        sem_i, sem_s = self.semantic.retrieve(
+            embedding,
+            {"memory_type": [MemoryType.SEMANTIC.value, MemoryType.PROCEDURAL.value]},
+            k * 2,
+        )
         proc_i, proc_s = self.procedural.retrieve(embedding, {}, k)
-        epi_i, epi_s = self.episodic.retrieve(embedding, {"memory_type": MemoryType.EPISODIC.value}, k)
+        epi_i, epi_s = self.episodic.retrieve(
+            embedding, {"memory_type": MemoryType.EPISODIC.value}, k
+        )
         return sem_i, sem_s, proc_i, proc_s, epi_i, epi_s
 
     def _calculate_salience(self, user_input: str, assistant_output: str) -> float:
@@ -859,11 +974,29 @@ class MemoryController:
 
         # ── Boost: First-person factual statements (highest value) ──
         first_person_markers = [
-            "my name is", "i am", "i'm", "i work", "i live", "i use",
-            "i prefer", "i like", "i built", "i'm building", "i code",
-            "my team", "my colleague", "our team", "we use", "we chose",
-            "we deploy", "we follow", "we run", "i have", "i started",
-            "my favorite", "i strongly",
+            "my name is",
+            "i am",
+            "i'm",
+            "i work",
+            "i live",
+            "i use",
+            "i prefer",
+            "i like",
+            "i built",
+            "i'm building",
+            "i code",
+            "my team",
+            "my colleague",
+            "our team",
+            "we use",
+            "we chose",
+            "we deploy",
+            "we follow",
+            "we run",
+            "i have",
+            "i started",
+            "my favorite",
+            "i strongly",
         ]
         if any(marker in input_lower for marker in first_person_markers):
             salience += constants.SALIENCE_BOOST_FIRST_PERSON
