@@ -4,6 +4,8 @@ Procedural memory for NeuroMem.
 Stores user style, preferences, and behavioral patterns (how the user thinks).
 """
 
+from __future__ import annotations
+
 import statistics
 from typing import List, Dict, Any, Tuple
 from neuromem.core.types import MemoryItem, MemoryType

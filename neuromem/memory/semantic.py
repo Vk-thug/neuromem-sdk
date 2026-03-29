@@ -4,6 +4,8 @@ Semantic memory for NeuroMem.
 Stores stable facts and knowledge about the user (what is true).
 """
 
+from __future__ import annotations
+
 from typing import List, Dict, Any, Tuple
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.storage.base import MemoryBackend

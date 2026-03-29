@@ -4,6 +4,8 @@ PostgreSQL + pgvector storage backend for NeuroMem.
 Provides persistent storage for user memories with vector support.
 """
 
+from __future__ import annotations
+
 import json
 from typing import List, Dict, Any, Tuple
 from psycopg2.extras import RealDictCursor

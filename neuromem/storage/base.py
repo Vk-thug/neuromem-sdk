@@ -4,6 +4,8 @@ Storage backend abstraction for NeuroMem.
 Defines the protocol that all storage backends must implement.
 """
 
+from __future__ import annotations
+
 from typing import Protocol, List, Dict, Any, Tuple
 from neuromem.core.types import MemoryItem
 

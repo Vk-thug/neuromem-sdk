@@ -4,6 +4,8 @@ In-memory storage backend for NeuroMem.
 Simple implementation for testing and development.
 """
 
+from __future__ import annotations
+
 from typing import List, Dict, Any, Tuple
 import numpy as np
 from neuromem.core.types import MemoryItem
