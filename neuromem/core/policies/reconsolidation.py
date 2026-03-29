@@ -4,7 +4,6 @@ Reconsolidation policy - memory editing on retrieval.
 
 from datetime import datetime, timezone
 from neuromem.core.types import MemoryItem
-from typing import Optional
 
 
 class ReconsolidationPolicy:

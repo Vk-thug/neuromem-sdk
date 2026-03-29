@@ -5,7 +5,6 @@ Orchestrates all memory operations and coordinates between different
 memory systems.
 """
 
-import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from neuromem.utils.time import ensure_utc
@@ -23,9 +22,6 @@ from neuromem.utils.embeddings import get_embedding
 from neuromem.utils.logging import get_logger
 from neuromem.utils.validation import validate_user_id, validate_content
 from neuromem import constants
-
-logger = get_logger(__name__)
-
 from neuromem.core.task_scheduler import PriorityTaskScheduler
 from neuromem.core.task_types import Task, TaskType, TaskPriority
 from neuromem.core.observability.metrics import MetricsCollector
@@ -34,6 +30,8 @@ from neuromem.core.workers.maintenance_worker import MaintenanceWorker
 from neuromem.core.policies.reconsolidation import ReconsolidationPolicy
 from neuromem.core.policies.conflict_resolution import ConflictResolver
 from neuromem.core.graph import MemoryGraph
+
+logger = get_logger(__name__)
 
 
 class MemoryController:
@@ -455,7 +453,7 @@ class MemoryController:
             "retention_days": self.decay_engine.get_retention_period(memory),
             "graph": {
                 "link_count": len(links),
-                "links": [{"target": l.target_id, "type": l.link_type, "strength": l.strength} for l in links[:10]],
+                "links": [{"target": link.target_id, "type": link.link_type, "strength": link.strength} for link in links[:10]],
             },
             "retrieval_stats": {
                 "count": memory.retrieval_stats.retrieval_count if memory.retrieval_stats else 0,
@@ -830,9 +828,12 @@ class MemoryController:
             mt = futures[future]
             try:
                 items, sims = future.result()
-                if mt == "semantic": sem_i, sem_s = items, sims
-                elif mt == "procedural": proc_i, proc_s = items, sims
-                elif mt == "episodic": epi_i, epi_s = items, sims
+                if mt == "semantic":
+                    sem_i, sem_s = items, sims
+                elif mt == "procedural":
+                    proc_i, proc_s = items, sims
+                elif mt == "episodic":
+                    epi_i, epi_s = items, sims
             except Exception as e:
                 logger.error(f"Parallel retrieval failed for {mt}", exc_info=True, extra={"error": str(e)})
         return sem_i, sem_s, proc_i, proc_s, epi_i, epi_s

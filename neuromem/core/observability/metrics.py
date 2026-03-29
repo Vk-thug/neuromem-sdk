@@ -3,7 +3,7 @@ Metrics collection for observability.
 """
 
 from collections import defaultdict
-from typing import Dict, List
+from typing import Dict
 import statistics
 
 

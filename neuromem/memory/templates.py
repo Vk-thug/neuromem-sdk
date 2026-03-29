@@ -5,7 +5,7 @@ Structured observation templates for different interaction types,
 like Obsidian's Templates but for AI agent observations.
 """
 
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 TEMPLATES: Dict[str, Dict[str, Any]] = {
     "decision": {

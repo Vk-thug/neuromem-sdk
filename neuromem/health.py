@@ -5,7 +5,7 @@ Provides comprehensive health monitoring for all components
 including database, workers, queues, and external APIs.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from datetime import datetime, timezone
 from neuromem.utils.logging import get_logger
 

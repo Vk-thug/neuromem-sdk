@@ -5,9 +5,8 @@ Provides validation functions to prevent security vulnerabilities
 and ensure data integrity.
 """
 
-import re
 import uuid
-from typing import Any, List, Optional
+from typing import List
 
 
 class ValidationError(Exception):

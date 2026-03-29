@@ -6,7 +6,7 @@ Provides robust error handling for OpenAI API and other external services.
 
 import time
 import random
-from typing import Callable, TypeVar, Optional, Any
+from typing import Callable, TypeVar, Optional
 from functools import wraps
 from neuromem.utils.logging import get_logger
 
@@ -80,7 +80,7 @@ class CircuitBreaker:
             result = func()
             self._on_success()
             return result
-        except Exception as e:
+        except Exception:
             self._on_failure()
             raise
 

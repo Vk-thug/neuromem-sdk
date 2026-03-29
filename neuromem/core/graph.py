@@ -129,12 +129,12 @@ class MemoryGraph:
         removed = False
 
         original = self._forward[source_id]
-        self._forward[source_id] = [l for l in original if l.target_id != target_id]
+        self._forward[source_id] = [lnk for lnk in original if lnk.target_id != target_id]
         if len(self._forward[source_id]) < len(original):
             removed = True
 
         original_rev = self._reverse[target_id]
-        self._reverse[target_id] = [l for l in original_rev if l.source_id != source_id]
+        self._reverse[target_id] = [lnk for lnk in original_rev if lnk.source_id != source_id]
 
         return removed
 
@@ -146,7 +146,7 @@ class MemoryGraph:
         if memory_id in self._forward:
             for link in self._forward[memory_id]:
                 self._reverse[link.target_id] = [
-                    l for l in self._reverse[link.target_id] if l.source_id != memory_id
+                    lnk for lnk in self._reverse[link.target_id] if lnk.source_id != memory_id
                 ]
                 count += 1
             del self._forward[memory_id]
@@ -155,7 +155,7 @@ class MemoryGraph:
         if memory_id in self._reverse:
             for link in self._reverse[memory_id]:
                 self._forward[link.source_id] = [
-                    l for l in self._forward[link.source_id] if l.target_id != memory_id
+                    lnk for lnk in self._forward[link.source_id] if lnk.target_id != memory_id
                 ]
                 count += 1
             del self._reverse[memory_id]
@@ -166,14 +166,14 @@ class MemoryGraph:
         """Get all outgoing links from a memory, optionally filtered by type."""
         links = list(self._forward.get(memory_id, []))
         if link_type:
-            links = [l for l in links if l.link_type == link_type]
+            links = [lnk for lnk in links if lnk.link_type == link_type]
         return links
 
     def get_backlinks(self, memory_id: str, link_type: Optional[str] = None) -> List[MemoryLink]:
         """Get all incoming links to a memory (like Obsidian backlinks)."""
         links = list(self._reverse.get(memory_id, []))
         if link_type:
-            links = [l for l in links if l.link_type == link_type]
+            links = [lnk for lnk in links if lnk.link_type == link_type]
         return links
 
     def get_related(self, memory_id: str, depth: int = 1) -> List[str]:

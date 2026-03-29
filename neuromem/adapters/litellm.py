@@ -16,7 +16,7 @@ Usage:
     )
 """
 
-from typing import List, Dict, Any, Optional, Iterator
+from typing import List, Dict, Iterator
 
 try:
     import litellm

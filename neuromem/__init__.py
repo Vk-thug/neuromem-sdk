@@ -395,7 +395,7 @@ class NeuroMem:
                 template = detect_template(user_input)
 
             if template != "general":
-                tmpl_data = apply_template(template, user_input, assistant_output)
+                apply_template(template, user_input, assistant_output)
                 # Template modifies content format and adds metadata
                 # But we still call observe with original inputs for validation
                 # Template tags/metadata will be handled in the next consolidation

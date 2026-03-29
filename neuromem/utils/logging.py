@@ -7,7 +7,7 @@ PII redaction and JSON formatting support.
 
 import logging
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 import json
 from datetime import datetime, timezone
 

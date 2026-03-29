@@ -2,7 +2,7 @@
 Embedding optimization policy with ML versioning.
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from neuromem.core.types import MemoryItem
 from neuromem.utils.time import ensure_utc
 

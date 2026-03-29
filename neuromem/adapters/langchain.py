@@ -13,7 +13,6 @@ Provides:
 
 from typing import List, Dict, Any, Optional, Iterator
 from langchain_core.runnables import Runnable, RunnableConfig
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.messages import (
     SystemMessage,
     HumanMessage,

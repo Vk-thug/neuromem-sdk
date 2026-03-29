@@ -10,7 +10,7 @@ Combines multiple retrieval strategies:
 """
 
 from typing import List, Dict, Any, Tuple
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from neuromem.utils.time import ensure_utc
 import math
 
@@ -161,7 +161,7 @@ class HybridRetrieval:
             if not isinstance(memory, dict):
                 try:
                     setattr(memory, 'score', final_score)
-                except:
+                except Exception:
                     pass
             else:
                 memory['score'] = final_score

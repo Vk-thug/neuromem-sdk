@@ -5,7 +5,7 @@ Stores user style, preferences, and behavioral patterns (how the user thinks).
 """
 
 import statistics
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.storage.base import MemoryBackend
 

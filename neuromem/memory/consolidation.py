@@ -9,10 +9,9 @@ Implements brain-inspired memory consolidation:
 """
 
 import json
-import uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timedelta, timezone
-from neuromem.core.types import MemoryItem, MemoryType
+from datetime import datetime, timezone
+from neuromem.core.types import MemoryItem
 from neuromem.utils.time import ensure_utc
 
 try:

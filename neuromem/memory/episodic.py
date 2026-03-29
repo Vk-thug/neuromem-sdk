@@ -4,7 +4,7 @@ Episodic memory for NeuroMem.
 Stores recent user-agent interactions (what happened).
 """
 
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.storage.base import MemoryBackend
 

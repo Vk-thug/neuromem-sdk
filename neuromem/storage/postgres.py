@@ -6,8 +6,6 @@ Provides persistent storage for user memories with vector support.
 
 import json
 from typing import List, Dict, Any, Tuple
-from datetime import datetime
-import psycopg2
 from psycopg2.extras import RealDictCursor
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.utils.validation import validate_filters

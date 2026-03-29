@@ -5,7 +5,7 @@ Ingest worker for CRITICAL priority tasks (observe).
 import time
 from datetime import datetime, timezone
 from neuromem.core.workers.base import BaseWorker
-from neuromem.core.task_types import TaskType, TaskPriority
+from neuromem.core.task_types import TaskType
 from neuromem.core.types import MemoryItem, MemoryType, EmbeddingMetadata, RetrievalStats
 from neuromem.utils.embeddings import get_embedding
 from neuromem.utils.logging import get_logger
@@ -134,7 +134,7 @@ class IngestWorker(BaseWorker):
         # 3. Generate embedding
         try:
             embedding = get_embedding(content, self.embedding_model)
-        except Exception as e:
+        except Exception:
             self.metrics.increment('embedding.error')
             raise
         

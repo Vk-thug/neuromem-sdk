@@ -3,7 +3,7 @@ Maintenance worker for MEDIUM/LOW/BACKGROUND priority tasks.
 """
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from neuromem.core.workers.base import BaseWorker
 from neuromem.core.task_types import TaskType
 from neuromem.core.policies.salience import SalienceCalculator

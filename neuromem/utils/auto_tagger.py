@@ -11,7 +11,6 @@ Automatically generates tags for memories based on:
 import json
 from typing import List, Dict, Any
 import openai
-import re
 
 
 class AutoTagger:

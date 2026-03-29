@@ -77,5 +77,5 @@ def parse_time_window(window: str) -> Optional[datetime]:
         else:
             return None
     
-    except:
+    except Exception:
         return None
