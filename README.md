@@ -1,183 +1,78 @@
-# NeuroMem SDK
+<p align="center">
+  <h1 align="center">NeuroMem SDK</h1>
+  <p align="center">
+    Brain-inspired memory infrastructure for AI agents.
+    <br />
+    Graph-based relationships. Multi-framework. MCP-native.
+  </p>
+</p>
 
-**Brain-Inspired Memory System for LangChain & LangGraph Agents**
+<p align="center">
+  <a href="https://pypi.org/project/neuromem-sdk/"><img src="https://img.shields.io/pypi/v/neuromem-sdk?color=blue" alt="PyPI" /></a>
+  <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-blue.svg" alt="Python 3.9+" /></a>
+  <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" /></a>
+  <a href="https://github.com/Vk-thug/neuromem-sdk"><img src="https://img.shields.io/badge/status-beta-green.svg" alt="Status" /></a>
+</p>
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Status: Alpha](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/neuromem/neuromem-sdk)
-
-> ⚠️ **Alpha Release**: This is an early alpha version (v0.1.0). APIs may change. Not recommended for production use yet.
-
-NeuroMem SDK provides a human-inspired, multi-layer memory system that enables LLM agents to:
-- 🧠 **Remember experiences** (episodic memory)
-- 📚 **Learn stable facts** (semantic memory)
-- 🎯 **Adapt behavior** (procedural memory)
-- 🔄 **Forget and correct** over time
-- 🎪 **Retrieve contextually** based on goals, salience, and recency
-
----
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-# Basic installation
-pip install neuromem-sdk
-
-# With all optional dependencies
-pip install neuromem-sdk[all]
-
-# Framework-specific installations
-pip install neuromem-sdk[langchain]   # LangChain integration
-pip install neuromem-sdk[langgraph]   # LangGraph integration
-pip install neuromem-sdk[postgres]    # PostgreSQL backend
-pip install neuromem-sdk[qdrant]      # Qdrant vector store
-```
-
-### Basic Usage
-
-```python
-from neuromem import NeuroMem
-
-# Create memory system
-memory = NeuroMem.for_langchain(user_id="user_123")
-
-# Observe interactions
-memory.observe(
-    user_input="I prefer concise answers",
-    assistant_output="Got it! I'll keep responses brief."
-)
-
-# Retrieve relevant memories
-context = memory.retrieve(
-    query="How should I format my responses?",
-    k=5
-)
-
-# Access memory content
-for item in context:
-    print(f"{item.memory_type}: {item.content}")
-```
+<p align="center">
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="#framework-adapters">Adapters</a> &middot;
+  <a href="#mcp-server">MCP Server</a> &middot;
+  <a href="#benchmarks">Benchmarks</a> &middot;
+  <a href="RELEASE_NOTES_v0.2.0.md">Release Notes</a>
+</p>
 
 ---
 
-## 📖 Table of Contents
+## What is NeuroMem?
 
-- [Features](#features)
-- [Architecture](#architecture)
-- [Installation](#installation-1)
-- [Configuration](#configuration)
-- [Framework Integrations](#framework-integrations)
-  - [LangChain](#langchain-integration)
-  - [LangGraph](#langgraph-integration)
-  - [LiteLLM](#litellm-integration)
-- [Storage Backends](#storage-backends)
-- [Advanced Features](#advanced-features)
-- [API Reference](#api-reference)
-- [Performance](#performance)
-- [Security](#security)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-
----
-
-## ✨ Features
-
-### Core Memory Systems
-- **Episodic Memory**: Recent experiences and interactions
-- **Semantic Memory**: Stable facts and knowledge
-- **Procedural Memory**: Behavioral patterns and preferences
-- **Session Memory**: Temporary in-conversation context
-
-### Brain-Inspired Retrieval
-- **Multi-factor scoring**: Similarity + salience + recency + reinforcement
-- **Hybrid retrieval**: Combines multiple memory types intelligently
-- **Competitive inhibition**: Prevents near-duplicate memories
-- **Confidence filtering**: Only retrieves reliable memories
-
-### Production-Ready Features
-- ⚡ **Async workers**: Non-blocking memory operations (<100ms latency)
-- 🔄 **Retry logic**: Exponential backoff with circuit breakers
-- 💾 **Embedding cache**: Reduces API costs by 80%
-- 🛡️ **Input validation**: Prevents SQL injection and malicious inputs
-- 📊 **Structured logging**: JSON logging with PII redaction
-- 🎯 **Rate limiting**: Handles OpenAI API limits gracefully
-
-### Memory Consolidation
-- **LLM-powered**: Extracts facts and patterns automatically
-- **Forgetting curve**: Memories decay naturally over time
-- **Reconsolidation**: Memories strengthen when accessed
-
----
-
-## 🏗️ Architecture
+NeuroMem is a **multi-layer memory system** modeled after human cognition. It gives AI agents the ability to remember experiences, learn stable facts, adapt to user preferences, and forget naturally — across any framework.
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    NeuroMem SDK                          │
-│                                                           │
-│  ┌─────────────┐     ┌──────────────┐   ┌─────────────┐│
-│  │  Episodic   │────▶│   Memory     │◀──│  Semantic   ││
-│  │   Memory    │     │  Controller  │   │   Memory    ││
-│  └─────────────┘     └──────────────┘   └─────────────┘│
-│         │                   │                   │        │
-│         │            ┌──────┴──────┐            │        │
-│         │            │  Retrieval   │            │        │
-│         └───────────▶│   Engine     │◀───────────┘        │
-│                      └──────────────┘                     │
-│                             │                              │
-│                      ┌──────┴──────┐                      │
-│                      │   Storage    │                      │
-│                      │   Backend    │                      │
-│                      └──────┬───────┘                      │
-│                             │                              │
-└─────────────────────────────┼──────────────────────────────┘
-                              │
-                    ┌─────────┴──────────┐
-                    │                    │
-            ┌───────▼─────┐      ┌──────▼──────┐
-            │  PostgreSQL │      │   Qdrant    │
-            │  + pgvector │      │  (vectors)  │
-            └─────────────┘      └─────────────┘
+Episodic Memory ── recent interactions, conversations, events
+Semantic Memory ── consolidated facts, knowledge, learned patterns
+Procedural Memory ── behavioral preferences, user style, habits
+Session Memory ── current conversation context (RAM-only)
 ```
+
+Memories are connected through a **knowledge graph** with entity extraction, enabling retrieval that goes beyond vector similarity — surfacing related memories through relationship traversal.
+
+### Key Capabilities
+
+- **Graph-augmented retrieval** — entity-linked memory graph with backlinks, clusters, and bridge detection
+- **Multi-factor scoring** — similarity (0.45) + salience (0.20) + recency (0.15) + reinforcement (0.10) + confidence (0.10)
+- **Structured query syntax** — filter by type, tag, confidence, date range, sentiment, intent
+- **Natural forgetting** — Ebbinghaus decay curves with reinforcement on access
+- **LLM-powered consolidation** — automatic episodic-to-semantic promotion via fact extraction
+- **8 framework adapters** — LangChain, LangGraph, LiteLLM, CrewAI, AutoGen, DSPy, Haystack, Semantic Kernel
+- **MCP server** — 12 tools for any MCP-compatible client (Claude, Cursor, etc.)
+- **4 storage backends** — PostgreSQL+pgvector, Qdrant, SQLite, In-Memory
 
 ---
 
-## 🔧 Installation
+## Quick Start
 
-### Prerequisites
-
-- Python 3.9 or higher
-- OpenAI API key (for embeddings)
-- Optional: PostgreSQL with pgvector extension
-
-### Install from PyPI
+### Install
 
 ```bash
 pip install neuromem-sdk
 ```
 
-### Install from Source
+With optional integrations:
 
 ```bash
-git clone https://github.com/neuromem/neuromem-sdk.git
-cd neuromem-sdk
-pip install -e .
+pip install neuromem-sdk[langchain]          # LangChain adapter
+pip install neuromem-sdk[langgraph]          # LangGraph adapter
+pip install neuromem-sdk[crewai]             # CrewAI adapter
+pip install neuromem-sdk[mcp]               # MCP server
+pip install neuromem-sdk[postgres]           # PostgreSQL backend
+pip install neuromem-sdk[qdrant]             # Qdrant backend
+pip install neuromem-sdk[all]               # Everything
 ```
 
-### Verify Installation
+### Configure
 
-```bash
-python test_setup.py
-```
-
----
-
-## ⚙️ Configuration
-
-Create a `neuromem.yaml` file:
+Create a `neuromem.yaml`:
 
 ```yaml
 neuromem:
@@ -187,98 +82,138 @@ neuromem:
 
   storage:
     database:
-      type: memory  # Options: postgres, sqlite, memory, qdrant
-      # url: postgresql://user:pass@localhost/neuromem  # For postgres
+      type: memory          # memory | postgres | sqlite | qdrant
 
   memory:
     decay_enabled: true
-    consolidation_interval: 10  # Consolidate every N turns
-    max_active_memories: 50
-    episodic_retention_days: 30
+    consolidation_interval: 10
 
   retrieval:
     hybrid_enabled: true
-    recency_weight: 0.2
-    importance_weight: 0.3
-    similarity_weight: 0.5
 
   async:
-    enabled: true
-    critical_queue_size: 1000
+    enabled: false
 ```
 
-### Environment Variables
+Set your API key:
 
 ```bash
-# Required
 export OPENAI_API_KEY=sk-...
+```
 
-# Optional
-export NEUROMEM_CACHE_EMBEDDINGS=true  # Enable embedding cache (default: true)
+### Use
+
+```python
+from neuromem import NeuroMem
+
+memory = NeuroMem.from_config("neuromem.yaml", user_id="user_123")
+
+# Store an interaction
+memory.observe(
+    user_input="I prefer Python over JavaScript for backend work",
+    assistant_output="Noted — I'll prioritize Python examples."
+)
+
+# Retrieve relevant memories
+results = memory.retrieve(query="What languages does the user prefer?", k=5)
+for item in results:
+    print(f"[{item.memory_type}] {item.content}")
+
+# Consolidate episodic memories into semantic facts
+memory.consolidate()
+
+# Cleanup
+memory.close()
 ```
 
 ---
 
-## 🔌 Framework Integrations
+## Framework Adapters
 
-### LangChain Integration
+NeuroMem integrates with 8 frameworks through drop-in adapters. All adapters use lazy imports — the framework package is only loaded when called.
+
+### LangChain
 
 ```python
 from neuromem import NeuroMem
 from neuromem.adapters.langchain import add_memory
-from langchain.chains import LLMChain
-from langchain.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 
-# Create memory
 memory = NeuroMem.for_langchain(user_id="user_123")
-
-# Create chain
-prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are a helpful assistant. Context: {context}"),
-    ("human", "{input}")
-])
-llm = ChatOpenAI(model="gpt-4")
-chain = prompt | llm
-
-# Add memory to chain
-chain_with_memory = add_memory(chain, memory)
-
-# Use chain
+chain_with_memory = add_memory(chain, memory, k=5)
 response = chain_with_memory.invoke({"input": "What are my preferences?"})
 ```
 
-### LangGraph Integration
+### LangGraph
 
 ```python
 from neuromem import NeuroMem
 from neuromem.adapters.langgraph import with_memory
-from langgraph.graph import StateGraph
 
-# Create memory
 memory = NeuroMem.for_langgraph(user_id="user_123")
-
-# Create graph
-graph = StateGraph(...)
-# ... define graph nodes and edges ...
-
-# Compile with memory
 app = with_memory(graph.compile(), memory)
-
-# Run
 result = app.invoke({"input": "Hello"})
 ```
 
-### LiteLLM Integration
+### CrewAI
+
+```python
+from neuromem import NeuroMem
+from neuromem.adapters.crewai import create_neuromem_tools
+
+memory = NeuroMem.for_crewai(user_id="user_123")
+tools = create_neuromem_tools(memory, k=5)
+# tools: [NeuroMemSearchTool, NeuroMemStoreTool, NeuroMemConsolidateTool, NeuroMemContextTool]
+```
+
+### AutoGen (AG2)
+
+```python
+from neuromem import NeuroMem
+from neuromem.adapters.autogen import register_neuromem_tools
+
+memory = NeuroMem.for_autogen(user_id="user_123")
+register_neuromem_tools(memory, caller=assistant, executor=user_proxy, k=5)
+```
+
+### DSPy
+
+```python
+from neuromem import NeuroMem
+from neuromem.adapters.dspy import NeuroMemRetriever
+
+memory = NeuroMem.for_dspy(user_id="user_123")
+retriever = NeuroMemRetriever(memory, k=5)  # Drop-in dspy.Retrieve replacement
+```
+
+### Haystack
+
+```python
+from neuromem import NeuroMem
+from neuromem.adapters.haystack import NeuroMemRetriever, NeuroMemWriter
+
+memory = NeuroMem.for_haystack(user_id="user_123")
+pipeline.add_component("retriever", NeuroMemRetriever(memory, top_k=5))
+pipeline.add_component("writer", NeuroMemWriter(memory))
+```
+
+### Semantic Kernel
+
+```python
+from neuromem import NeuroMem
+from neuromem.adapters.semantic_kernel import create_neuromem_plugin
+
+memory = NeuroMem.for_semantic_kernel(user_id="user_123")
+plugin = create_neuromem_plugin(memory, k=5)
+# Exposes: search_memory, store_memory, get_context, consolidate
+```
+
+### LiteLLM
 
 ```python
 from neuromem import NeuroMem
 from neuromem.adapters.litellm import completion_with_memory
 
-# Create memory
 memory = NeuroMem.for_litellm(user_id="user_123")
-
-# Make completion with memory
 response = completion_with_memory(
     model="gpt-4",
     messages=[{"role": "user", "content": "What do I like?"}],
@@ -288,47 +223,157 @@ response = completion_with_memory(
 
 ---
 
-## 💾 Storage Backends
+## MCP Server
 
-### In-Memory (Default)
+NeuroMem ships as a standalone MCP server with 12 tools, 3 resources, and 2 prompts.
 
-```yaml
-storage:
-  database:
-    type: memory
+```bash
+pip install neuromem-sdk[mcp]
+
+# Start the server
+python -m neuromem.mcp
+# Or: neuromem-mcp
 ```
 
-Fast, but data lost on restart. Good for development.
+### Tools
 
-### PostgreSQL + pgvector
+| Tool | Description |
+|------|-------------|
+| `store_memory` | Store observations with auto-template detection |
+| `search_memories` | Semantic search with multi-hop decomposition |
+| `search_advanced` | Structured query syntax with filters |
+| `get_context` | Retrieve with graph-based context expansion |
+| `get_memory` | Get a specific memory by ID |
+| `list_memories` | List memories with optional type filtering |
+| `update_memory` | Modify existing memory content |
+| `delete_memory` | Permanently delete a memory |
+| `consolidate` | Trigger episodic-to-semantic promotion |
+| `get_stats` | System statistics and health status |
+| `find_by_tags` | Hierarchical tag-based lookup |
+| `get_graph` | Export the memory relationship graph |
+
+### Claude Code Integration
+
+```json
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "neuromem-mcp",
+      "env": {
+        "OPENAI_API_KEY": "sk-..."
+      }
+    }
+  }
+}
+```
+
+---
+
+## Graph Memory
+
+Memories are linked through a knowledge graph with 5 relationship types:
+
+```
+derived_from  — semantic memory created from episodic sources
+contradicts   — conflicting memories
+reinforces    — strengthening relationships
+related       — similar content detected
+supersedes    — newer memory replaces older
+```
+
+```python
+# Retrieve with graph context expansion
+context = memory.retrieve_with_context(query="What does the user prefer?", k=5)
+
+# Export the graph
+graph = memory.get_graph()  # { nodes: [...], edges: [...] }
+```
+
+Entity extraction runs inline during `observe()` — lightweight, no external dependencies, <1ms. Entities are indexed for O(1) lookup during retrieval.
+
+---
+
+## Structured Query Syntax
+
+```python
+# Filter by type and confidence
+results = memory.search('type:semantic confidence:>0.8 python')
+
+# Date range with exact phrase
+results = memory.search('after:2024-01-01 before:2024-12-31 "machine learning"')
+
+# Sentiment and intent
+results = memory.search('intent:question sentiment:positive')
+
+# Tag hierarchy
+results = memory.find_by_tags("preference/", limit=20)
+tag_tree = memory.get_tag_tree()
+```
+
+**Operators:** `type:`, `tag:`, `confidence:`, `salience:`, `after:`, `before:`, `intent:`, `sentiment:`, `source:`, `"exact phrase"`
+
+---
+
+## Memory Templates
+
+Structured observation templates with auto-detection:
+
+```python
+# Auto-detected from keywords
+memory.observe(
+    user_input="I prefer dark mode in all my IDEs",
+    assistant_output="Noted."
+)
+# Detected as "preference" → salience=0.9, tags=["preference"]
+
+# Explicit template
+memory.observe(
+    user_input="I decided to use PostgreSQL",
+    assistant_output="Good choice.",
+    template="decision"
+)
+```
+
+| Template | Salience | Auto-detected Keywords |
+|----------|----------|----------------------|
+| `decision` | 0.8 | decided, chose, picked, settled on |
+| `preference` | 0.9 | prefer, like, want, love, hate |
+| `fact` | 0.7 | my name is, I am, I work, I use |
+| `goal` | 0.85 | want to, planning to, goal is |
+| `feedback` | 0.75 | feedback, suggestion, improve |
+
+---
+
+## Temporal Summaries
+
+```python
+# Daily digest
+summary = memory.daily_summary(date="2026-03-28")
+# { date, summary, memory_count, key_topics, key_facts, sentiment_distribution }
+
+# Weekly digest
+digest = memory.weekly_digest(week_start="2026-03-25")
+```
+
+---
+
+## Storage Backends
+
+| Backend | Install | Use Case |
+|---------|---------|----------|
+| **In-Memory** | Built-in | Development, testing |
+| **SQLite** | Built-in | Local development, small datasets |
+| **PostgreSQL + pgvector** | `pip install neuromem-sdk[postgres]` | Production, large-scale |
+| **Qdrant** | `pip install neuromem-sdk[qdrant]` | Production, high-performance vector search |
 
 ```yaml
+# PostgreSQL
 storage:
   database:
     type: postgres
     url: postgresql://user:pass@localhost:5432/neuromem
-```
 
-**Setup**:
-```sql
-CREATE DATABASE neuromem;
-CREATE EXTENSION vector;
-```
-
-### SQLite
-
-```yaml
-storage:
-  database:
-    type: sqlite
-    url: neuromem.db
-```
-
-Lightweight, file-based storage.
-
-### Qdrant
-
-```yaml
+# Qdrant
 storage:
   vector_store:
     type: qdrant
@@ -338,304 +383,199 @@ storage:
       collection_name: neuromem
 ```
 
-High-performance vector search.
+---
+
+## Benchmarks
+
+Evaluated on the [LoCoMo benchmark](https://github.com/snap-research/locomo) (ACL 2024) — 10 extended conversations, 1,986 QA pairs across 5 difficulty categories.
+
+### vs. Competitors (Categories 1 + 4)
+
+| System | F1 | Exact Match | Retrieval Hit Rate |
+|--------|-----|------------|-------------------|
+| **NeuroMem v0.2.0** | **39.4** | **15.0%** | **36.7%** |
+| LangMem | 32.7 | 11.7% | 33.3% |
+| Mem0 | 30.6 | 10.0% | 21.7% |
+
+### Full Benchmark (999 questions)
+
+| Category | F1 | Description |
+|----------|-----|-------------|
+| Single-hop | **37.1** | Direct fact retrieval |
+| Temporal | 7.2 | Time-based reasoning |
+| Open-ended | 9.0 | Subjective, long-form |
+| Multi-hop | **41.7** | Cross-memory reasoning |
+| Adversarial | 0.4 | Unanswerable detection |
+
+### Run benchmarks locally
+
+```bash
+# Head-to-head comparison
+python -m benchmarks --systems neuromem mem0 langmem
+
+# Quick smoke test (~2 min)
+python -m benchmarks --quick
+
+# Latency profiling
+python -m benchmarks --latency
+```
 
 ---
 
-## 🚀 Advanced Features
+## API Reference
 
-### Manual Consolidation
+### Core
 
 ```python
-# Trigger consolidation manually
+NeuroMem.from_config(config_path, user_id)      # Initialize from YAML
+NeuroMem.for_langchain(user_id, config_path)     # LangChain constructor
+NeuroMem.for_langgraph(user_id, config_path)     # LangGraph constructor
+NeuroMem.for_crewai(user_id, config_path)        # CrewAI constructor
+NeuroMem.for_autogen(user_id, config_path)       # AutoGen constructor
+NeuroMem.for_dspy(user_id, config_path)          # DSPy constructor
+NeuroMem.for_haystack(user_id, config_path)      # Haystack constructor
+NeuroMem.for_semantic_kernel(user_id, config_path) # Semantic Kernel constructor
+NeuroMem.for_mcp(user_id, config_path)           # MCP constructor
+NeuroMem.for_litellm(user_id, config_path)       # LiteLLM constructor
+```
+
+### Memory Operations
+
+```python
+memory.observe(user_input, assistant_output, template=None)
+memory.retrieve(query, task_type="chat", k=8, parallel=True)
+memory.retrieve_with_context(query, task_type="chat", k=5)
+memory.search(query_string, k=10)
 memory.consolidate()
+memory.list(memory_type=None, limit=50)
+memory.update(memory_id, content)
+memory.forget(memory_id)
+memory.explain(memory_id)
+memory.close()
 ```
 
-### Memory Management
+### Graph & Discovery
 
 ```python
-# List all memories
-memories = memory.list(memory_type="semantic", limit=50)
-
-# Update a memory
-memory.update(memory_id="...", content="Updated content")
-
-# Delete a memory
-memory.forget(memory_id="...")
-
-# Explain why a memory was retrieved
-explanation = memory.explain(memory_id="...")
-print(explanation)
+memory.get_graph()                                # Export graph as {nodes, edges}
+memory.find_by_tags(tag_prefix, limit=20)         # Hierarchical tag search
+memory.get_tag_tree()                             # Tag hierarchy with counts
+memory.get_memories_by_date(date)                 # Temporal retrieval
+memory.get_memories_in_range(start, end, memory_type)
 ```
 
-### Health Checks
+### Summaries
 
 ```python
-# Check system health
-from neuromem.health import get_health_status
-
-health = get_health_status(memory)
-print(health)
-# {'status': 'healthy', 'database': 'connected', 'workers': {...}}
-```
-
-### Cache Management
-
-```python
-from neuromem.utils.embeddings import get_cache_stats, clear_embedding_cache
-
-# Get cache statistics
-stats = get_cache_stats()
-print(f"Cache size: {stats['size']}/{stats['max_size']}")
-
-# Clear cache
-clear_embedding_cache()
+memory.daily_summary(date)                        # Daily memory digest
+memory.weekly_digest(week_start)                  # Weekly summary
 ```
 
 ---
 
-## 📊 API Reference
+## Architecture
 
-### NeuroMem Class
+```
+NeuroMem (Facade)
+  └── MemoryController
+        ├── EpisodicMemory ──┐
+        ├── SemanticMemory ──┤── MemoryBackend (Protocol)
+        ├── ProceduralMemory ┘
+        ├── SessionMemory (RAM-only)
+        ├── MemoryGraph (entity index, backlinks, clusters)
+        ├── MemoryQuery (structured query parser)
+        ├── RetrievalEngine (multi-factor scoring)
+        ├── ConsolidationEngine (LLM-powered)
+        ├── DecayEngine (Ebbinghaus curves)
+        ├── PriorityTaskScheduler (5-level queues)
+        ├── IngestWorker (daemon thread)
+        ├── MaintenanceWorker (daemon thread)
+        └── Policies (salience, reconsolidation, conflict, optimization)
 
-#### `NeuroMem.from_config(config_path, user_id)`
-Initialize from configuration file.
+Storage Backends:
+  ├── PostgresBackend (psycopg2 + pgvector)
+  ├── QdrantStorage (qdrant-client)
+  ├── SQLiteBackend (sqlite3)
+  └── InMemoryBackend (dict)
 
-#### `NeuroMem.for_langchain(user_id, config_path="neuromem.yaml")`
-Quick initialization for LangChain.
-
-#### `NeuroMem.for_langgraph(user_id, config_path="neuromem.yaml")`
-Quick initialization for LangGraph.
-
-#### `NeuroMem.for_litellm(user_id, config_path="neuromem.yaml")`
-Quick initialization for LiteLLM.
-
-#### `retrieve(query, task_type="chat", k=8)`
-Retrieve relevant memories.
-
-#### `observe(user_input, assistant_output)`
-Record a user-assistant interaction.
-
-#### `consolidate()`
-Trigger memory consolidation.
-
-#### `list(memory_type=None, limit=50)`
-List memories.
-
-#### `explain(memory_id)`
-Explain memory retrieval.
-
-#### `update(memory_id, content)`
-Update memory content.
-
-#### `forget(memory_id)`
-Delete a memory.
-
-#### `close()`
-Close and release resources.
+Adapters:
+  ├── LangChain (LCEL Runnable, ChatMessageHistory)
+  ├── LangGraph (StateGraph nodes, BaseStore)
+  ├── CrewAI (BaseTool subclasses)
+  ├── AutoGen (callable tools, Teachability-style)
+  ├── DSPy (Retrieve module, ReAct tools)
+  ├── Haystack (@component pipeline nodes)
+  ├── Semantic Kernel (@kernel_function plugin)
+  └── LiteLLM (completion wrapper)
+```
 
 ---
 
-## ⚡ Performance
-
-### Benchmarks
-
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| `observe()` | <100ms | Async mode (queued) |
-| `retrieve()` | 200-500ms | Depends on storage backend |
-| `consolidate()` | 2-10s | Background, non-blocking |
-
-### Optimization Tips
-
-1. **Enable caching**: Reduces OpenAI API costs by 80%
-   ```bash
-   export NEUROMEM_CACHE_EMBEDDINGS=true
-   ```
-
-2. **Use PostgreSQL with pgvector**: 3-5x faster than in-memory for large datasets
-
-3. **Batch operations**: Use `batch_get_embeddings()` for multiple texts
-
-4. **Tune queue sizes**: Adjust in `neuromem.yaml`:
-   ```yaml
-   async:
-     critical_queue_size: 1000
-     high_queue_size: 500
-   ```
-
----
-
-## 🛡️ Security
-
-### Input Validation
-
-All user inputs are validated:
-- User IDs must be valid UUIDs
-- Content length limited to 50KB
-- SQL injection prevention via filter validation
-
-### API Key Security
+## Development
 
 ```bash
-# Store API keys securely
-export OPENAI_API_KEY=sk-...
-
-# Never commit keys to git
-echo ".env" >> .gitignore
-```
-
-### PII Redaction
-
-Structured logging automatically redacts:
-- Email addresses
-- Phone numbers
-- Social Security Numbers
-- Credit card numbers
-
----
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### OpenAI API Rate Limits
-
-**Error**: `RateLimitError: You exceeded your current quota`
-
-**Solution**: The SDK includes automatic retry logic with exponential backoff. If you still hit limits:
-
-```python
-# Reduce concurrent operations
-memory.config.async.critical_queue_size = 100
-
-# Enable aggressive caching
-export NEUROMEM_CACHE_EMBEDDINGS=true
-```
-
-#### Memory Growth
-
-**Issue**: Database size growing too large
-
-**Solution**:
-1. Enable memory decay:
-   ```yaml
-   memory:
-     decay_enabled: true
-     episodic_retention_days: 30
-   ```
-
-2. Run manual cleanup:
-   ```python
-   memory.consolidate()  # Promotes important memories, forgets old ones
-   ```
-
-#### Slow Retrieval
-
-**Issue**: `retrieve()` takes >1 second
-
-**Solutions**:
-1. Add database indexes (PostgreSQL):
-   ```sql
-   CREATE INDEX idx_memory_embedding ON user_memories
-   USING ivfflat (embedding vector_cosine_ops);
-   ```
-
-2. Reduce `k` parameter:
-   ```python
-   memory.retrieve(query, k=5)  # Instead of k=50
-   ```
-
-### Enable Debug Logging
-
-```python
-from neuromem.utils.logging import get_logger
-import logging
-
-logger = get_logger(__name__, level=logging.DEBUG)
-```
-
----
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-# Basic tests
-bash test_sdk.sh
-
-# Full setup verification
-python test_setup.py
-```
-
----
-
-## 📈 Roadmap
-
-### v0.1.0 (Alpha) - Current Release
-- [x] Basic memory types (Episodic, Semantic)
-- [x] Retrieval engine
-- [x] Storage backends (Memory, SQLite, Postgres, Qdrant)
-
-### v0.1.0 (Beta) - Target: Q2 2026
-- [ ] Unit test coverage >80%
-- [ ] Performance optimization (parallel retrieval)
-- [ ] Comprehensive documentation
-- [ ] Load testing (10,000+ users)
-
-### v1.0.0 (Production) - Target: Q3 2026
-- [ ] Security audit
-- [ ] Multi-tenancy support
-- [ ] Advanced analytics dashboard
-- [ ] Enterprise features
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Setup
-
-```bash
-# Clone repo
-git clone https://github.com/neuromem/neuromem-sdk.git
+# Clone
+git clone https://github.com/Vk-thug/neuromem-sdk.git
 cd neuromem-sdk
 
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
+# Install with dev dependencies
 pip install -e .[dev]
 
 # Run tests
-bash test_sdk.sh
+pytest
+pytest --cov=neuromem
+
+# Code quality
+black neuromem/ --line-length 100
+ruff check neuromem/
+mypy neuromem/
 ```
 
----
+### Test Coverage
 
-## 📜 License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-## 🙏 Acknowledgments
-
-- Inspired by cognitive neuroscience research on human memory
-- Built on top of LangChain, LangGraph, and OpenAI
-- Thanks to all contributors!
+| Suite | Tests |
+|-------|-------|
+| Core (memory, retrieval, decay) | 50+ |
+| Graph memory | 26 |
+| Structured query | 31 |
+| MCP server | 26 |
+| Workflows | 30 |
+| Framework adapters | 42 |
+| **Total** | **176** |
 
 ---
 
-## 📞 Support
+## Roadmap
 
-- **Issues**: [GitHub Issues](https://github.com/neuromem/neuromem-sdk/issues)
-- **Documentation**: [docs.neuromem.ai](https://docs.neuromem.ai)
-- **Discussions**: [GitHub Discussions](https://github.com/neuromem/neuromem-sdk/discussions)
+- [ ] Temporal reasoning improvements (date extraction, time-aware retrieval)
+- [ ] Adversarial query detection (calibrated "I don't know" responses)
+- [ ] Distributed memory (multi-agent shared state with conflict resolution)
+- [ ] Prometheus metrics export
+- [ ] CI/CD pipeline with automated benchmarking
 
 ---
 
-**Made with ❤️ by the NeuroMem Team**
+## Contributing
+
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
+## License
+
+[MIT](LICENSE)
+
+---
+
+## Links
+
+- [PyPI](https://pypi.org/project/neuromem-sdk/)
+- [Release Notes](RELEASE_NOTES_v0.2.0.md)
+- [Changelog](CHANGELOG.md)
+- [Issues](https://github.com/Vk-thug/neuromem-sdk/issues)
+
+---
+
+## Acknowledgments
+
+Benchmark evaluation uses the [LoCoMo dataset](https://github.com/snap-research/locomo) (Maharana et al., ACL 2024). Graph-augmented retrieval is inspired by [HippoRAG](https://arxiv.org/abs/2405.14831). Memory template design draws from [Obsidian](https://obsidian.md/) knowledge management patterns.
