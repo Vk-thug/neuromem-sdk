@@ -78,3 +78,7 @@ Thumbs.db
 
 # NeuroMem specific
 neuromem.yaml.local
+
+.claude
+CLAUDE.md
+plan/
