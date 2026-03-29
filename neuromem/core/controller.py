@@ -6,7 +6,7 @@ memory systems.
 """
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date as date_cls, datetime, timedelta, timezone
 from neuromem.utils.time import ensure_utc
 from typing import List, Optional, Dict, Any, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -537,16 +537,32 @@ class MemoryController:
     # TEMPORAL QUERIES
     # ----------------------------------------------------------------
 
+    @staticmethod
+    def _coerce_date(value: object) -> date_cls:
+        """Coerce a string, datetime, or date into a date object."""
+        if isinstance(value, str):
+            return datetime.strptime(value, "%Y-%m-%d").date()
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date_cls):
+            return value
+        raise TypeError(f"Expected str, date, or datetime — got {type(value).__name__}")
+
     def get_memories_by_date(
-        self, date: datetime, memory_type: Optional[str] = None
+        self, date: object, memory_type: Optional[str] = None
     ) -> List[MemoryItem]:
-        start = datetime(date.year, date.month, date.day, tzinfo=timezone.utc)
+        d = self._coerce_date(date)
+        start = datetime(d.year, d.month, d.day, tzinfo=timezone.utc)
         end = start + timedelta(days=1)
         return self.get_memories_in_range(start, end, memory_type)
 
     def get_memories_in_range(
-        self, start: datetime, end: datetime, memory_type: Optional[str] = None
+        self, start: object, end: object, memory_type: Optional[str] = None
     ) -> List[MemoryItem]:
+        if isinstance(start, str):
+            start = datetime.strptime(start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        if isinstance(end, str):
+            end = datetime.strptime(end, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         all_memories = self.list_memories(memory_type, limit=1000)
         return [
             m

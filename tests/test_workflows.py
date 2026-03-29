@@ -7,8 +7,6 @@ the Inngest server running (client, events, config).
 
 import pytest
 import uuid
-from datetime import datetime
-from unittest.mock import Mock, MagicMock, patch
 
 
 class TestWorkflowImports:
@@ -17,6 +15,7 @@ class TestWorkflowImports:
     def test_client_import(self):
         """Test client module imports without inngest installed."""
         from neuromem.workflows.client import INNGEST_AVAILABLE
+
         # Should be False if inngest not installed, True if installed
         assert isinstance(INNGEST_AVAILABLE, bool)
 
@@ -34,15 +33,16 @@ class TestWorkflowImports:
         from neuromem.workflows.events import NeuroMemEvents
 
         event_attrs = [
-            a for a in dir(NeuroMemEvents)
+            a
+            for a in dir(NeuroMemEvents)
             if not a.startswith("_") and isinstance(getattr(NeuroMemEvents, a), str)
         ]
 
         for attr in event_attrs:
             value = getattr(NeuroMemEvents, attr)
-            assert value.startswith("neuromem/"), (
-                f"Event {attr} = '{value}' must start with 'neuromem/'"
-            )
+            assert value.startswith(
+                "neuromem/"
+            ), f"Event {attr} = '{value}' must start with 'neuromem/'"
 
     def test_workflows_init_import(self):
         """Test top-level workflows package import."""
@@ -51,6 +51,7 @@ class TestWorkflowImports:
             create_neuromem_workflows,
             create_workflow_app,
         )
+
         assert callable(get_inngest_client)
         assert callable(create_neuromem_workflows)
         assert callable(create_workflow_app)
@@ -113,6 +114,7 @@ class TestWorkflowClientSingleton:
     def test_reset_client(self):
         """Test client reset."""
         from neuromem.workflows.client import reset_client
+
         reset_client()  # Should not raise
 
     def test_get_client_without_inngest_raises(self):
@@ -124,6 +126,7 @@ class TestWorkflowClientSingleton:
         if not INNGEST_AVAILABLE:
             with pytest.raises(ImportError, match="inngest"):
                 from neuromem.workflows.client import get_inngest_client
+
                 get_inngest_client()
 
 
@@ -187,8 +190,6 @@ class TestWorkflowStepHandlers:
     @pytest.fixture
     def neuromem_instance(self, tmp_path):
         """Create a NeuroMem instance with in-memory backend."""
-        import tempfile
-        import os
 
         config_content = """
 neuromem:

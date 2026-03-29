@@ -51,7 +51,7 @@ class TestQueryParser:
         assert q.text_query == "other text"
 
     def test_combined_query(self):
-        q = MemoryQuery('type:semantic tag:preference confidence:>0.8 after:2024-01-01 python')
+        q = MemoryQuery("type:semantic tag:preference confidence:>0.8 after:2024-01-01 python")
         assert q.filters["memory_type"] == "semantic"
         assert q.filters["tag_prefix"] == "preference"
         assert q.filters["confidence_val"] == 0.8
@@ -182,7 +182,10 @@ class TestTemplates:
         assert detect_template("I decided to use PostgreSQL") == "decision"
 
     def test_detect_goal(self):
-        assert detect_template("I am planning to build an ML pipeline and aiming to finish by Friday") == "goal"
+        assert (
+            detect_template("I am planning to build an ML pipeline and aiming to finish by Friday")
+            == "goal"
+        )
 
     def test_detect_feedback(self):
         assert detect_template("My feedback is the API could improve") == "feedback"
@@ -278,6 +281,7 @@ neuromem:
         config_path = tmp_path / "test.yaml"
         config_path.write_text(config_content)
         from neuromem import NeuroMem
+
         memory = NeuroMem.from_config(str(config_path), user_id=str(uuid.uuid4()))
         yield memory
         memory.close()
@@ -307,6 +311,26 @@ neuromem:
         digest = neuromem_instance.weekly_digest()
         assert isinstance(digest, dict)
         assert "total_memories" in digest
+
+    def test_daily_summary_string_date(self, neuromem_instance):
+        """Issue 2: daily_summary must accept string dates."""
+        neuromem_instance.observe("Hello", "Hi there!")
+        summary = neuromem_instance.daily_summary(date="2026-03-29")
+        assert isinstance(summary, dict)
+        assert summary["date"] == "2026-03-29"
+
+    def test_weekly_digest_string_date(self, neuromem_instance):
+        """Issue 2: weekly_digest must accept string dates."""
+        neuromem_instance.observe("Hello", "Hi there!")
+        digest = neuromem_instance.weekly_digest(week_start="2026-03-24")
+        assert isinstance(digest, dict)
+        assert "total_memories" in digest
+
+    def test_get_memories_by_date_string(self, neuromem_instance):
+        """Issue 2: controller.get_memories_by_date must accept string dates."""
+        neuromem_instance.observe("Hello", "Hi there!")
+        memories = neuromem_instance.controller.get_memories_by_date("2026-03-29")
+        assert isinstance(memories, list)
 
 
 if __name__ == "__main__":

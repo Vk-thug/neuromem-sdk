@@ -4,10 +4,9 @@ Tests for the NeuroMem MCP server.
 
 import pytest
 from datetime import datetime
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock
 from neuromem.core.types import MemoryItem, MemoryType
 from neuromem.mcp.types import serialize_memory, serialize_memory_list
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -96,9 +95,7 @@ class TestSerializeMemory:
         assert result["memory_type"] == "semantic"
 
     def test_with_expanded_context(self):
-        item = _make_memory(
-            metadata={"expanded_context": ["related memory 1", "related memory 2"]}
-        )
+        item = _make_memory(metadata={"expanded_context": ["related memory 1", "related memory 2"]})
         result = serialize_memory(item)
         assert result["expanded_context"] == ["related memory 1", "related memory 2"]
 
@@ -180,15 +177,11 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_list_memories_with_type_filter(self, mock_ctx):
         ctx, mock_mem = mock_ctx
-        mock_mem.list.return_value = [
-            _make_memory(memory_type=MemoryType.SEMANTIC, id="sem-1")
-        ]
+        mock_mem.list.return_value = [_make_memory(memory_type=MemoryType.SEMANTIC, id="sem-1")]
 
         import asyncio
 
-        results = await asyncio.to_thread(
-            mock_mem.list, memory_type="semantic", limit=50
-        )
+        results = await asyncio.to_thread(mock_mem.list, memory_type="semantic", limit=50)
         assert len(results) == 1
         assert results[0].memory_type == MemoryType.SEMANTIC
 
@@ -216,12 +209,8 @@ class TestMCPTools:
 
         import asyncio
 
-        await asyncio.to_thread(
-            mock_mem.update, memory_id="mem-001", content="Updated content"
-        )
-        mock_mem.update.assert_called_once_with(
-            memory_id="mem-001", content="Updated content"
-        )
+        await asyncio.to_thread(mock_mem.update, memory_id="mem-001", content="Updated content")
+        mock_mem.update.assert_called_once_with(memory_id="mem-001", content="Updated content")
 
     @pytest.mark.asyncio
     async def test_delete_memory_tool(self, mock_ctx):
@@ -272,9 +261,7 @@ class TestMCPTools:
 
         import asyncio
 
-        results = await asyncio.to_thread(
-            mock_mem.find_by_tags, tag_prefix="topic:ai", limit=50
-        )
+        results = await asyncio.to_thread(mock_mem.find_by_tags, tag_prefix="topic:ai", limit=50)
         assert len(results) == 1
 
     @pytest.mark.asyncio
@@ -294,9 +281,7 @@ class TestMCPTools:
     @pytest.mark.asyncio
     async def test_search_advanced_tool(self, mock_ctx):
         ctx, mock_mem = mock_ctx
-        mock_mem.search.return_value = [
-            _make_memory(memory_type=MemoryType.SEMANTIC)
-        ]
+        mock_mem.search.return_value = [_make_memory(memory_type=MemoryType.SEMANTIC)]
 
         import asyncio
 

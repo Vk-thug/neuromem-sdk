@@ -500,22 +500,26 @@ class NeuroMem:
         return results[:k]
 
     def daily_summary(self, date=None) -> dict:
-        """Get daily memory summary (defaults to today)."""
+        """Get daily memory summary (defaults to today). Accepts str ('YYYY-MM-DD'), date, or datetime."""
         from neuromem.memory.summaries import TemporalSummarizer
 
         if date is None:
             date = datetime.now(timezone.utc)
+        elif isinstance(date, str):
+            date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         memories = self.controller.get_memories_by_date(date)
         return TemporalSummarizer().daily_summary(memories, date)
 
     def weekly_digest(self, week_start=None) -> dict:
-        """Get weekly memory digest."""
+        """Get weekly memory digest. Accepts str ('YYYY-MM-DD'), date, or datetime."""
         from neuromem.memory.summaries import TemporalSummarizer
         from datetime import timedelta
 
         if week_start is None:
             now = datetime.now(timezone.utc)
             week_start = now - timedelta(days=now.weekday())
+        elif isinstance(week_start, str):
+            week_start = datetime.strptime(week_start, "%Y-%m-%d").replace(tzinfo=timezone.utc)
         week_end = week_start + timedelta(days=7)
         memories = self.controller.get_memories_in_range(week_start, week_end)
         return TemporalSummarizer().weekly_digest(memories, week_start)
@@ -577,4 +581,4 @@ __all__ = [
     "MemoryBackend",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.2.1"

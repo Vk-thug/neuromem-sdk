@@ -118,7 +118,5 @@ class TestCreatePlugin:
     def test_create_plugin_custom_name(self, mock_neuromem):
         from neuromem.adapters.semantic_kernel import create_neuromem_plugin
 
-        plugin = create_neuromem_plugin(
-            mock_neuromem, k=5, plugin_name="memory"
-        )
+        plugin = create_neuromem_plugin(mock_neuromem, k=5, plugin_name="memory")
         assert plugin.name == "memory"

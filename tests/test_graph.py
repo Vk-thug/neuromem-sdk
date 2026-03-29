@@ -4,8 +4,8 @@ Tests for MemoryGraph and Memory Links.
 
 import pytest
 import uuid
-from datetime import datetime, timedelta, timezone
-from neuromem.core.types import MemoryItem, MemoryType, MemoryLink
+from datetime import datetime, timezone
+from neuromem.core.types import MemoryLink
 from neuromem.core.graph import MemoryGraph
 
 
@@ -202,6 +202,7 @@ neuromem:
         config_path = tmp_path / "test.yaml"
         config_path.write_text(config_content)
         from neuromem import NeuroMem
+
         user_id = str(uuid.uuid4())
         memory = NeuroMem.from_config(str(config_path), user_id=user_id)
         yield memory
@@ -213,11 +214,15 @@ neuromem:
 
     def test_controller_has_conflict_resolver(self, neuromem_instance):
         from neuromem.core.policies.conflict_resolution import ConflictResolver
+
         assert isinstance(neuromem_instance.controller.conflict_resolver, ConflictResolver)
 
     def test_controller_has_reconsolidation_policy(self, neuromem_instance):
         from neuromem.core.policies.reconsolidation import ReconsolidationPolicy
-        assert isinstance(neuromem_instance.controller.reconsolidation_policy, ReconsolidationPolicy)
+
+        assert isinstance(
+            neuromem_instance.controller.reconsolidation_policy, ReconsolidationPolicy
+        )
 
     def test_retrieve_with_context_expansion(self, neuromem_instance):
         # Store some memories
@@ -244,6 +249,7 @@ neuromem:
     def test_get_memories_by_date(self, neuromem_instance):
         neuromem_instance.observe("Test memory", "Test response")
         from datetime import datetime
+
         memories = neuromem_instance.get_memories_by_date(datetime.now())
         assert isinstance(memories, list)
 

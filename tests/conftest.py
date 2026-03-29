@@ -7,8 +7,6 @@ import tempfile
 import os
 from unittest.mock import Mock, MagicMock
 from neuromem import NeuroMem
-from neuromem.config import NeuroMemConfig
-from neuromem.user import UserManager
 from neuromem.storage.memory import InMemoryBackend
 from neuromem.core.types import MemoryItem, MemoryType
 from datetime import datetime, timezone
@@ -18,7 +16,7 @@ import uuid
 @pytest.fixture
 def temp_config_file():
     """Create a temporary config file"""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
         f.write("""
 neuromem:
   model:
@@ -63,6 +61,7 @@ def neuromem_instance(temp_config_file, user_id):
 def mock_embedding():
     """Generate a mock embedding vector"""
     import numpy as np
+
     np.random.seed(42)
     return np.random.randn(1536).tolist()
 
@@ -84,8 +83,8 @@ def sample_memory_item(user_id, mock_embedding):
         reinforcement=1,
         inferred=False,
         editable=True,
-        tags=['test'],
-        metadata={}
+        tags=["test"],
+        metadata={},
     )
 
 

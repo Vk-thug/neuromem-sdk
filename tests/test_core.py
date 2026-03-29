@@ -22,11 +22,11 @@ class TestNeuroMemInitialization:
         """Test langchain convenience method"""
         # This would need a valid config file in the working directory
         # For now, test that the method exists
-        assert hasattr(NeuroMem, 'for_langchain')
+        assert hasattr(NeuroMem, "for_langchain")
 
     def test_for_langgraph(self, user_id):
         """Test langgraph convenience method"""
-        assert hasattr(NeuroMem, 'for_langgraph')
+        assert hasattr(NeuroMem, "for_langgraph")
 
 
 class TestObserve:
@@ -35,25 +35,20 @@ class TestObserve:
     def test_observe_valid_input(self, neuromem_instance):
         """Test observing valid interaction"""
         neuromem_instance.observe(
-            user_input="Hello, how are you?",
-            assistant_output="I'm doing well, thank you!"
+            user_input="Hello, how are you?", assistant_output="I'm doing well, thank you!"
         )
         # Should not raise any errors
 
     def test_observe_invalid_user_input(self, neuromem_instance):
         """Test that invalid user input raises ValidationError"""
         with pytest.raises(ValidationError):
-            neuromem_instance.observe(
-                user_input="",  # Empty input
-                assistant_output="Response"
-            )
+            neuromem_instance.observe(user_input="", assistant_output="Response")  # Empty input
 
     def test_observe_too_long_input(self, neuromem_instance):
         """Test that oversized input raises ValidationError"""
         with pytest.raises(ValidationError):
             neuromem_instance.observe(
-                user_input="x" * 60000,  # Exceeds 50KB limit
-                assistant_output="Response"
+                user_input="x" * 60000, assistant_output="Response"  # Exceeds 50KB limit
             )
 
 
@@ -134,25 +129,25 @@ class TestHealthChecks:
         from neuromem.health import get_health_status
 
         health = get_health_status(neuromem_instance)
-        assert 'status' in health
-        assert 'checks' in health
-        assert health['status'] in ['healthy', 'degraded', 'unhealthy']
+        assert "status" in health
+        assert "checks" in health
+        assert health["status"] in ["healthy", "degraded", "unhealthy"]
 
     def test_readiness_status(self, neuromem_instance):
         """Test getting readiness status"""
         from neuromem.health import get_readiness_status
 
         readiness = get_readiness_status(neuromem_instance)
-        assert 'ready' in readiness
-        assert isinstance(readiness['ready'], bool)
+        assert "ready" in readiness
+        assert isinstance(readiness["ready"], bool)
 
     def test_liveness_status(self, neuromem_instance):
         """Test getting liveness status"""
         from neuromem.health import get_liveness_status
 
         liveness = get_liveness_status(neuromem_instance)
-        assert 'alive' in liveness
-        assert liveness['alive'] is True
+        assert "alive" in liveness
+        assert liveness["alive"] is True
 
 
 if __name__ == "__main__":

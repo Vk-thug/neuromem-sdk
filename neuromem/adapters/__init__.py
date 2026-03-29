@@ -63,8 +63,11 @@ try:
         NeuroMemStoreTool,
         NeuroMemConsolidateTool,
         NeuroMemContextTool,
-        create_neuromem_tools as create_crewai_tools,
+        create_neuromem_tools,
     )
+
+    # Backward-compat alias
+    create_crewai_tools = create_neuromem_tools
 
     _CREWAI_AVAILABLE = True
 except (ImportError, NameError, TypeError):
@@ -73,6 +76,7 @@ except (ImportError, NameError, TypeError):
     NeuroMemStoreTool = None  # type: ignore
     NeuroMemConsolidateTool = None  # type: ignore
     NeuroMemContextTool = None  # type: ignore
+    create_neuromem_tools = None  # type: ignore
     create_crewai_tools = None  # type: ignore
 
 # AutoGen / AG2 adapter (requires: pip install ag2)
@@ -152,6 +156,7 @@ __all__ = [
     "NeuroMemStoreTool",
     "NeuroMemConsolidateTool",
     "NeuroMemContextTool",
+    "create_neuromem_tools",
     "create_crewai_tools",
     # AutoGen
     "register_neuromem_tools",

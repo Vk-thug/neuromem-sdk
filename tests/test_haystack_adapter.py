@@ -73,9 +73,7 @@ class TestNeuroMemRetriever:
 
         retriever = NeuroMemRetriever(mock_neuromem, top_k=3)
         retriever.run(query="test", top_k=10)
-        mock_neuromem.retrieve.assert_called_once_with(
-            query="test", task_type="chat", k=10
-        )
+        mock_neuromem.retrieve.assert_called_once_with(query="test", task_type="chat", k=10)
 
 
 class TestNeuroMemWriter:

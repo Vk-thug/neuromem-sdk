@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuromem-sdk"
-version = "0.2.0"
+version = "0.2.1"
 description = "Brain-Inspired Memory SDK for LangChain & LangGraph Agents"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -74,7 +74,10 @@ haystack = [
 semantic-kernel = [
     "semantic-kernel>=1.30.0",
 ]
-all = [
+# NOTE: crewai and dspy have conflicting json-repair pins and cannot
+# be installed together.  Use the individual extras or one of the
+# composite groups below.
+all-no-dspy = [
     "psycopg2-binary>=2.9.0",
     "openai>=1.0.0",
     "langchain>=0.1.0",
@@ -88,6 +91,23 @@ all = [
     "mcp>=1.26.0",
     "pydantic>=2.0.0",
     "crewai>=1.10.0",
+    "ag2>=0.8.0",
+    "haystack-ai>=2.20.0",
+    "semantic-kernel>=1.30.0",
+]
+all-no-crewai = [
+    "psycopg2-binary>=2.9.0",
+    "openai>=1.0.0",
+    "langchain>=0.1.0",
+    "langgraph>=0.0.1",
+    "qdrant-client>=1.7.0",
+    "langchain-openai>=1.1.7",
+    "langchain-anthropic>=1.3.2",
+    "inngest>=0.5.0",
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "mcp>=1.26.0",
+    "pydantic>=2.0.0",
     "ag2>=0.8.0",
     "dspy>=3.0.0",
     "haystack-ai>=2.20.0",

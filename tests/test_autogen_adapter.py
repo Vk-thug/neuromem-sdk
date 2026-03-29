@@ -1,7 +1,7 @@
 """Tests for AutoGen (AG2) adapter."""
 
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 from datetime import datetime
 from neuromem.core.types import MemoryItem, MemoryType
 
