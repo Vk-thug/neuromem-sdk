@@ -47,7 +47,7 @@ neuromem:
   storage:
     vector_store:
       config:
-        url: postgresql://neondb_owner:npg_hPa2mOuWQfM6@ep-sweet-star-a15p66hk-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+        url: 
       type: postgres
   tagging:
     analyze_sentiment: true
