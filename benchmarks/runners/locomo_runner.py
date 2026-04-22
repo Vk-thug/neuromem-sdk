@@ -7,6 +7,8 @@ the QA pairs and evaluates answers using F1 + LLM-as-a-Judge.
 This is the primary benchmark for comparing NeuroMem against Mem0, Zep, etc.
 """
 
+from __future__ import annotations
+
 import time
 import uuid
 from dataclasses import dataclass

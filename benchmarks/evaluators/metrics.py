@@ -8,6 +8,8 @@ Implements:
 - Aggregation utilities
 """
 
+from __future__ import annotations
+
 import re
 import string
 from dataclasses import dataclass, field

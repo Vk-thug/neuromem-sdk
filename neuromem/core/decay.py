@@ -5,6 +5,8 @@ Implements forgetting curves and memory decay, similar to how human
 memories fade over time without reinforcement.
 """
 
+from __future__ import annotations
+
 import math
 from datetime import datetime, timedelta, timezone
 from neuromem.utils.time import ensure_utc

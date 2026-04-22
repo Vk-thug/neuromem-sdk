@@ -8,6 +8,8 @@ Downloads and parses the LoCoMo-10 dataset (ACL 2024) which contains
 Reference: https://github.com/snap-research/locomo
 """
 
+from __future__ import annotations
+
 import json
 import os
 import re

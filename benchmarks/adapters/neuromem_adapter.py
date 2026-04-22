@@ -5,6 +5,8 @@ Supports both in-memory backend (for quick testing) and Qdrant backend
 (for production-grade benchmarks matching real deployment).
 """
 
+from __future__ import annotations
+
 import os
 import uuid
 import tempfile

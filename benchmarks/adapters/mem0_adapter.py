@@ -5,6 +5,8 @@ Wraps the mem0ai package to implement the same interface as NeuroMem.
 Install: pip install mem0ai
 """
 
+from __future__ import annotations
+
 import uuid
 from typing import Optional
 

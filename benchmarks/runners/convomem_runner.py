@@ -7,6 +7,8 @@ Per-message indexing, recall measured by evidence text matching.
 6 categories, recall metric only (no NDCG — evidence is text-based, not ID-based).
 """
 
+from __future__ import annotations
+
 import time
 import uuid
 from dataclasses import dataclass

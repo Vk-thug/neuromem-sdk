@@ -8,6 +8,8 @@ Dataset: ~500 questions across 6 types testing long-term memory recall.
 Each question has a haystack of sessions and ground-truth session IDs.
 """
 
+from __future__ import annotations
+
 import json
 import urllib.request
 from dataclasses import dataclass

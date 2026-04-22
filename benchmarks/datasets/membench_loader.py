@@ -7,6 +7,8 @@ Clone from: https://github.com/import-myself/Membench
 8.5K items across 11 task categories testing conversational memory.
 """
 
+from __future__ import annotations
+
 import json
 from dataclasses import dataclass
 from pathlib import Path

@@ -4,6 +4,8 @@ Tests for new benchmark runners, metrics, loaders, and adapters.
 Tests use mock adapters to avoid external dependencies (ChromaDB, HuggingFace).
 """
 
+from __future__ import annotations
+
 import pytest
 
 from benchmarks.adapters.base import SearchResult

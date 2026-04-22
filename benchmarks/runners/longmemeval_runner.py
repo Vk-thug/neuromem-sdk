@@ -8,6 +8,8 @@ Metrics: R@k (any/all), NDCG@k, per-question-type breakdown.
 No LLM answer generation required — pure retrieval benchmark.
 """
 
+from __future__ import annotations
+
 import time
 import uuid
 from dataclasses import dataclass

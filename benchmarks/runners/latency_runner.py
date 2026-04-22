@@ -5,6 +5,8 @@ Measures P50/P95/P99 latency for store and search operations
 across memory systems under various load conditions.
 """
 
+from __future__ import annotations
+
 import statistics
 import time
 import uuid

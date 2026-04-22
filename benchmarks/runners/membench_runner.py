@@ -6,6 +6,8 @@ Turn-level indexing, Hit@k metric (did we retrieve the turn containing
 the answer?), per-task-category breakdown.
 """
 
+from __future__ import annotations
+
 import time
 import uuid
 from dataclasses import dataclass

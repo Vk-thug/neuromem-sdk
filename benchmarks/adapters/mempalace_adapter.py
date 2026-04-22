@@ -6,6 +6,8 @@ via ChromaDB's built-in SentenceTransformer). This replicates how MemPalace
 scores on benchmarks — verbatim storage with no extraction or summarization.
 """
 
+from __future__ import annotations
+
 import uuid
 
 from benchmarks.adapters.base import SearchResult

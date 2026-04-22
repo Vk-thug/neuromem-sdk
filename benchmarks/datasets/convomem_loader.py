@@ -5,6 +5,8 @@ Downloads the Salesforce/ConvoMem benchmark from HuggingFace.
 75K QA pairs across 6 categories testing conversational memory recall.
 """
 
+from __future__ import annotations
+
 import json
 import urllib.request
 from dataclasses import dataclass

@@ -7,6 +7,8 @@ storage backend that LangMem builds on.
 Install: pip install langmem (installs langgraph + langchain-openai)
 """
 
+from __future__ import annotations
+
 import uuid
 from typing import Optional
 

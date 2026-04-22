@@ -8,6 +8,8 @@ Install: pip install zep-cloud
 Docs: https://help.getzep.com/
 """
 
+from __future__ import annotations
+
 import os
 import uuid
 from typing import Optional

@@ -5,6 +5,8 @@ Every memory system (NeuroMem, Mem0, Zep, LangMem) implements this
 same interface so the benchmark runner is system-agnostic.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
