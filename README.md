@@ -19,7 +19,7 @@
   <a href="#framework-adapters">Adapters</a> &middot;
   <a href="#mcp-server">MCP Server</a> &middot;
   <a href="#benchmarks">Benchmarks</a> &middot;
-  <a href="RELEASE_NOTES_v0.2.0.md">Release Notes</a>
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 ---
@@ -39,14 +39,19 @@ Memories are connected through a **knowledge graph** with entity extraction, ena
 
 ### Key Capabilities
 
+- **Beats MemPalace on MemBench, LongMemEval, and ConvoMem** head-to-head — [see Benchmarks](#benchmarks)
+- **Digital brain architecture** *(v0.3.0)* — 6 brain regions (hippocampus CA1/pattern-sep/pattern-comp, neocortex, amygdala, basal ganglia, prefrontal) with JSON-persisted state
+- **Multimodal fusion** *(v0.3.0)* — text / audio / video encoders + late-fusion router + LiveKit bridge for voice agents
+- **Tunable retrieval pipeline** *(v0.3.2)* — BM25 + cross-encoder + HyDE + LLM rerank, with per-workload blend tuning via YAML
 - **Graph-augmented retrieval** — entity-linked memory graph with backlinks, clusters, and bridge detection
-- **Multi-factor scoring** — similarity (0.45) + salience (0.20) + recency (0.15) + reinforcement (0.10) + confidence (0.10)
+- **Multi-factor scoring** — similarity + salience + recency + reinforcement + confidence
 - **Structured query syntax** — filter by type, tag, confidence, date range, sentiment, intent
 - **Natural forgetting** — Ebbinghaus decay curves with reinforcement on access
 - **LLM-powered consolidation** — automatic episodic-to-semantic promotion via fact extraction
 - **8 framework adapters** — LangChain, LangGraph, LiteLLM, CrewAI, AutoGen, DSPy, Haystack, Semantic Kernel
 - **MCP server** — 12 tools for any MCP-compatible client (Claude, Cursor, etc.)
 - **4 storage backends** — PostgreSQL+pgvector, Qdrant, SQLite, In-Memory
+- **Python 3.9+** — tested on 3.9 / 3.10 / 3.11 / 3.12 in CI
 
 ---
 
@@ -618,8 +623,8 @@ Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## Links
 
 - [PyPI](https://pypi.org/project/neuromem-sdk/)
-- [Release Notes](RELEASE_NOTES_v0.2.0.md)
 - [Changelog](CHANGELOG.md)
+- [GitHub Releases](https://github.com/Vk-thug/neuromem-sdk/releases)
 - [Issues](https://github.com/Vk-thug/neuromem-sdk/issues)
 
 ---
