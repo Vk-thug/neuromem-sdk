@@ -26,6 +26,10 @@ class TaskType(Enum):
     OPTIMIZE = ("optimize", TaskPriority.LOW)
     DECAY = ("decay", TaskPriority.BACKGROUND)
     RECONSOLIDATE = ("reconsolidate", TaskPriority.HIGH)
+    # Brain system tasks (v0.3.0)
+    RIPPLE_REPLAY = ("ripple_replay", TaskPriority.BACKGROUND)
+    TD_UPDATE = ("td_update", TaskPriority.LOW)
+    MULTIMODAL_ENCODE = ("multimodal_encode", TaskPriority.HIGH)
 
     def __init__(self, task_name: str, priority: TaskPriority):
         self.task_name = task_name

@@ -47,6 +47,10 @@ class DecayEngine:
         if not self.enabled:
             return 1.0
 
+        # Flashbulb memories never decay (amygdala override, v0.3.0)
+        if item.metadata.get("flashbulb", False):
+            return 1.0
+
         # Time since last access in days
         time_delta = datetime.now(timezone.utc) - ensure_utc(item.last_accessed)
         days = time_delta.total_seconds() / 86400.0
@@ -75,6 +79,10 @@ class DecayEngine:
             True if memory should be forgotten
         """
         if not self.enabled:
+            return False
+
+        # Flashbulb memories are never forgotten (amygdala override, v0.3.0)
+        if item.metadata.get("flashbulb", False):
             return False
 
         strength = self.calculate_decay(item)

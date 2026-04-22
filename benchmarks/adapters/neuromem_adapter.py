@@ -24,10 +24,16 @@ class NeuroMemAdapter:
         self._user_id: str = ""
         self._config_path: str = ""
         self._backend: str = "memory"
+        self._use_hyde: bool = False
+        self._hyde_model: str = "qwen2.5-coder:7b"
+        self._verbatim_only: bool = False
+        self._bm25_blend: float = 0.5
+        self._ce_blend: float = 0.9
 
     @property
     def name(self) -> str:
-        return f"NeuroMem (v0.2.0, {self._backend})"
+        mode = "verbatim-only" if self._verbatim_only else "cognitive"
+        return f"NeuroMem (v0.3.0, {self._backend}, {mode})"
 
     def setup(self, config: dict) -> None:
         """
@@ -47,6 +53,12 @@ class NeuroMemAdapter:
 
         self._backend = config.get("backend", "memory")
         self._user_id = config.get("user_id", str(uuid.uuid4()))
+        self._use_hyde = config.get("use_hyde", False)
+        self._hyde_model = config.get("hyde_model", "qwen2.5-coder:7b")
+        self._use_llm_rerank = config.get("use_llm_rerank", False)
+        self._verbatim_only = config.get("verbatim_only", False)
+        self._bm25_blend = config.get("bm25_blend", 0.5)
+        self._ce_blend = config.get("ce_blend", 0.9)
 
         embedding_model = config.get("embedding_model", "nomic-embed-text")
         embedding_provider = config.get("embedding_provider", "ollama")
@@ -66,13 +78,26 @@ class NeuroMemAdapter:
                 },
                 "async": {"enabled": False},  # Sync mode for deterministic benchmarks
                 "retrieval": {
-                    "hybrid_enabled": True,  # Enable multi-signal ranking
-                    # In benchmark mode all memories have the same base salience,
-                    # so pure similarity should dominate ranking
-                    "similarity_weight": 0.70,
-                    "importance_weight": 0.15,
-                    "recency_weight": 0.15,
-                    "recency_half_life_days": 1,  # All memories same age in bench
+                    # Pure similarity ranking for benchmarks — MemPalace uses
+                    # raw cosine distance ordering. Salience/recency add noise
+                    # when all memories are the same age and have similar content.
+                    "hybrid_enabled": True,
+                    "similarity_weight": 1.0,
+                    "importance_weight": 0.0,
+                    "recency_weight": 0.0,
+                    "recency_half_life_days": 1,
+                    "llm_rerank_enabled": self._use_llm_rerank,
+                    "llm_rerank_model": "qwen2.5-coder:7b",
+                    "llm_rerank_provider": "ollama",
+                },
+                "verbatim": {
+                    # Enabled: provides redundant storage path that catches
+                    # cases where the cognitive memory's content gets filtered
+                    # by conflict resolution or confidence thresholds.
+                    "enabled": True,
+                    "chunk_size": 2000,
+                    "chunk_overlap": 150,
+                    "weight": 0.5,
                 },
                 "tagging": {"auto_tag_enabled": False},
                 "embeddings": {
@@ -133,9 +158,12 @@ class NeuroMemAdapter:
         else:
             formatted = content
 
+        # Pass all benchmark metadata through to the stored MemoryItem
+        # so retrieval can resolve corpus_id, timestamp, etc.
         self._neuromem.observe(
             user_input=formatted,
             assistant_output="Memory stored.",
+            metadata=meta,
         )
         return str(uuid.uuid4())  # NeuroMem doesn't return ID from observe
 
@@ -163,18 +191,45 @@ class NeuroMemAdapter:
         k: int = 5,
     ) -> list[SearchResult]:
         """Search memories using NeuroMem's retrieve method."""
-        items = self._neuromem.retrieve(query=query, task_type="chat", k=k)
+        # HyDE: transform query into a hypothetical answer for better
+        # semantic matching against evidence documents. Critical for
+        # implicit/preference queries where query and answer share no
+        # surface vocabulary. Cached so repeated benchmark runs are fast.
+        effective_query = query
+        if self._use_hyde:
+            try:
+                from neuromem.core.hyde import generate_hypothetical_answer
+
+                effective_query = generate_hypothetical_answer(
+                    query=query,
+                    model=self._hyde_model,
+                    provider="ollama",
+                )
+            except Exception:
+                effective_query = query
+
+        if self._verbatim_only:
+            items = self._neuromem.retrieve_verbatim_only(
+                query=effective_query,
+                k=k,
+                bm25_blend=self._bm25_blend,
+                ce_blend=self._ce_blend,
+            )
+        else:
+            items = self._neuromem.retrieve(query=effective_query, task_type="chat", k=k)
         results: list[SearchResult] = []
         for item in items:
+            # Merge item metadata (which now includes benchmark metadata like
+            # corpus_id, timestamp, session_id) with memory-type info
+            result_meta = dict(item.metadata) if item.metadata else {}
+            result_meta["memory_type"] = item.memory_type.value
+            result_meta["confidence"] = item.confidence
+
             results.append(SearchResult(
                 content=self._clean_content(item.content),
                 score=item.salience,
                 memory_id=item.id,
-                metadata={
-                    "memory_type": item.memory_type.value,
-                    "confidence": item.confidence,
-                    "tags": item.tags,
-                },
+                metadata=result_meta,
             ))
         return results
 
@@ -191,11 +246,30 @@ class NeuroMemAdapter:
         ]
 
     def clear(self, user_id: str) -> None:
-        """Delete all memories."""
-        items = self._neuromem.list(limit=1000)
-        for item in items:
+        """
+        Delete all memories, including verbatim chunks.
+
+        Paginated loop: list(limit) returns at most `limit` items, and a
+        MemBench entry can produce thousands of verbatim chunks. Loop until
+        list() returns zero so the next entry starts from a clean store and
+        search latency doesn't grow unbounded across the run.
+        """
+        while True:
+            items = self._neuromem.list(limit=2000)
+            if not items:
+                break
+            for item in items:
+                try:
+                    self._neuromem.forget(item.id)
+                except Exception:
+                    pass
+
+        # Reset the verbatim store's seen-hashes dedup cache so subsequent
+        # entries can re-ingest identical content (different targets per entry).
+        verbatim = getattr(self._neuromem.controller, "verbatim", None)
+        if verbatim is not None:
             try:
-                self._neuromem.forget(item.id)
+                verbatim._seen_hashes.clear()
             except Exception:
                 pass
 

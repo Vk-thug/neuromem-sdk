@@ -123,6 +123,90 @@ class NeuroMemConfig:
             },
         )
 
+    def verbatim(self) -> Dict[str, Any]:
+        """Get verbatim storage configuration."""
+        return self.raw["neuromem"].get(
+            "verbatim",
+            {
+                "enabled": True,
+                "chunk_size": 800,
+                "chunk_overlap": 100,
+                "weight": 0.5,
+            },
+        )
+
+    def brain(self) -> Dict[str, Any]:
+        """Get brain system configuration.
+
+        Returns safe defaults when the ``brain`` section is absent,
+        so existing neuromem.yaml files continue to work unchanged.
+        """
+        return self.raw["neuromem"].get(
+            "brain",
+            {
+                "enabled": False,
+                "hippocampus": {
+                    "pattern_separation_expansion": 4,
+                    "sparsity": 0.05,
+                    "completion_iterations": 3,
+                    "ripple_interval_minutes": 20,
+                    "ripple_batch_size": 10,
+                    "maturation_minutes": 30,
+                },
+                "prefrontal": {
+                    "working_memory_capacity": 4,
+                },
+                "amygdala": {
+                    "flashbulb_arousal_threshold": 0.8,
+                },
+                "basal_ganglia": {
+                    "td_alpha": 0.1,
+                    "td_gamma": 0.9,
+                    "habit_formation_threshold": 5,
+                },
+                "neocortex": {
+                    "schema_congruence_threshold": 0.75,
+                    "interleave_ratio": 0.3,
+                },
+            },
+        )
+
+    def multimodal(self) -> Dict[str, Any]:
+        """Get multimodal pipeline configuration.
+
+        Returns safe defaults when the ``multimodal`` section is absent.
+        """
+        return self.raw["neuromem"].get(
+            "multimodal",
+            {
+                "enabled": False,
+                "fusion_dim": 1536,
+                "modality_dropout": 0.3,
+                "temporal_hz": 2,
+                "text": {"model": "text-embedding-3-large"},
+                "audio": {"model": "wav2vec2-base-960h", "enabled": False},
+                "video": {"model": "dinov2-base", "enabled": False, "sample_hz": 2},
+                "fusion": {"bottleneck_dim": 256},
+            },
+        )
+
+    def livekit(self) -> Dict[str, Any]:
+        """Get LiveKit integration configuration.
+
+        Returns safe defaults when the ``livekit`` section is absent.
+        """
+        return self.raw["neuromem"].get(
+            "livekit",
+            {
+                "enabled": False,
+                "url": "",
+                "api_key": "",
+                "api_secret": "",
+                "vad_threshold": 0.5,
+                "video_sample_hz": 2,
+            },
+        )
+
     def workflows(self) -> Dict[str, Any]:
         """Get Inngest workflow configuration."""
         return self.raw["neuromem"].get(

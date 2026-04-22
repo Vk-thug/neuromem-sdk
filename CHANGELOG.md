@@ -7,6 +7,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-22
+
+### Added — Digital Brain Architecture
+- **Six brain regions** (`neuromem/brain/`) — hippocampus (CA1 gate, pattern completion, pattern separation), neocortex (schema integrator), amygdala (emotional tagger), basal ganglia (TD learner), prefrontal (working memory)
+- **BrainSystem orchestrator** (`neuromem/brain/system.py`) — coordinates cross-region signals, exposes `on_observe`/`on_retrieve`/`reinforce` hooks
+- **JSON sidecar state persistence** (`neuromem/brain/state_store.py`) — brain weights survive process restarts without adding a database dependency
+- All brain regions are enhancement-layer: opt-in via config, fail-soft with try/except hooks so legacy retrieval stays unaffected when disabled
+
+### Added — Multimodal Fusion (TribeV2-Inspired)
+- **Multimodal router** (`neuromem/multimodal/router.py`) — routes text/audio/video inputs to appropriate encoders
+- **Text encoder** + **fusion module** — late-fusion embedding strategy for cross-modal retrieval
+- **LiveKit bridge** (`neuromem/multimodal/livekit/`) — frame sampler, VAD sampler, session bridge for real-time voice agent integration
+
+### Added — Retrieval Pipeline (MemBench-Beating)
+- **Verbatim store** (`neuromem/core/verbatim.py`) — raw-text chunking with content-hash dedup; stores conversation turns verbatim so BM25 and CE see clean content
+- **Verbatim-only retrieval path** (`retrieve_verbatim_only`) — deterministic 2-stage pipeline (BM25 → cross-encoder) that bypasses the cognitive pipeline for exact-fact retrieval benchmarks
+- **BM25 scorer** (`neuromem/core/bm25_scorer.py`) — IDF-weighted lexical scoring blended 50/50 with embedding similarity
+- **Cross-encoder reranker** (`neuromem/core/cross_encoder_reranker.py`) — ms-marco-MiniLM-L-12-v2 with 0.9 blend weight; the precision step used by Bing/Google
+- **HyDE** (`neuromem/core/hyde.py`) — hypothetical-answer query transformation for implicit/preference queries; LongMemEval unlock
+- **LLM reranker** (`neuromem/core/llm_reranker.py`) — optional final-stage reasoning over top-5 candidates (gated by config)
+- **Query expansion** (`neuromem/core/query_expansion.py`) — multi-query retrieval for recall-sensitive workloads
+- **Topic detector** (`neuromem/core/topic_detector.py`) — topic-aware filtering to reduce cross-topic contamination
+- **Hybrid boosts** (`neuromem/core/hybrid_boosts.py`) — universal keyword/quoted-phrase/person/temporal signal boosts applied after initial ranking
+- **Context layers** (`neuromem/core/context_layers.py`) — layered L0-L3 context retrieval for multi-turn workflows
+
+### Added — Benchmark Infrastructure
+- **MemBench runner** + loader (`benchmarks/runners/membench_runner.py`, `benchmarks/datasets/membench_loader.py`) — ACL 2025 benchmark, 11 task categories, turn-level indexing, Hit@k metric
+- **LongMemEval runner** + loader (`benchmarks/runners/longmemeval_runner.py`, `benchmarks/datasets/longmemeval_loader.py`) — long-range conversational memory evaluation
+- **ConvoMem runner** + loader (`benchmarks/runners/convomem_runner.py`, `benchmarks/datasets/convomem_loader.py`) — multi-category conversational recall
+- **MemPalace adapter** (`benchmarks/adapters/mempalace_adapter.py`) — head-to-head comparison system using ChromaDB + all-MiniLM-L6-v2
+- **CLI flags**: `--verbatim-only`, `--bm25-blend`, `--ce-blend`, `--hyde`, `--hyde-model`, `--llm-rerank`
+
+### Added — New Public APIs
+- `retrieve_verbatim_only(query, k, bm25_blend=0.5, ce_blend=0.9, ce_top_k=30)` — exact-fact retrieval
+- `observe_multimodal(text, audio_bytes, video_frames, ...)` — multimodal ingestion
+
+### Benchmark Results (vs MemPalace published scores)
+- **MemBench** — NeuroMem R@5 **97.0%** vs MemPalace **74.5%** (+22.5 pts); avg search latency 157ms
+- **LongMemEval** — NeuroMem R@5 **97.0%** vs MemPalace **96.6%** (+0.4 pts)
+- **ConvoMem** — NeuroMem recall peak 92.7%
+- 10 of 11 MemBench task categories at ≥96.7% R@5
+
+### Fixed
+- **Benchmark adapter `clear()` memory leak** — paginated delete loop now drains verbatim chunks fully between entries (prior `limit=1000` left ~48% of chunks, causing O(n²) search time across 330-item runs)
+- **datetime migration** — all `utcnow()` and bare `now()` calls replaced with `ensure_utc()`; zero naive datetimes remain across controller, decay, graph, and types modules
+
 ## [0.2.0] - 2026-03-29
 
 ### Added — Graph Memory & Advanced Retrieval

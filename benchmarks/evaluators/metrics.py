@@ -233,6 +233,175 @@ def answer_containment(prediction: str, ground_truth: str) -> float:
     return contained / len(gt_tokens) if gt_tokens else 1.0
 
 
+def recall_at_k(
+    retrieved_ids: list[str],
+    relevant_ids: set[str],
+    k: int,
+) -> float:
+    """
+    Recall-any@k: 1.0 if any relevant ID appears in top-k retrieved, else 0.0.
+
+    Used by LongMemEval, ConvoMem, and MemBench to measure retrieval quality
+    without requiring LLM answer generation.
+    """
+    if not relevant_ids:
+        return 1.0
+    top_k = set(retrieved_ids[:k])
+    return 1.0 if top_k & relevant_ids else 0.0
+
+
+def recall_all_at_k(
+    retrieved_ids: list[str],
+    relevant_ids: set[str],
+    k: int,
+) -> float:
+    """Recall-all@k: 1.0 if ALL relevant IDs appear in top-k retrieved."""
+    if not relevant_ids:
+        return 1.0
+    top_k = set(retrieved_ids[:k])
+    return 1.0 if relevant_ids <= top_k else 0.0
+
+
+def recall_fraction_at_k(
+    retrieved_ids: list[str],
+    relevant_ids: set[str],
+    k: int,
+) -> float:
+    """Fractional recall@k: fraction of relevant IDs found in top-k."""
+    if not relevant_ids:
+        return 1.0
+    top_k = set(retrieved_ids[:k])
+    found = len(relevant_ids & top_k)
+    return found / len(relevant_ids)
+
+
+def _dcg(relevances: list[float], k: int) -> float:
+    """Discounted Cumulative Gain."""
+    import math
+
+    score = 0.0
+    for i, rel in enumerate(relevances[:k]):
+        score += rel / math.log2(i + 2)
+    return score
+
+
+def ndcg_at_k(
+    retrieved_ids: list[str],
+    relevant_ids: set[str],
+    k: int,
+) -> float:
+    """
+    Normalized Discounted Cumulative Gain at k.
+
+    Measures ranking quality — rewards systems that place relevant items higher.
+    """
+    relevances = [1.0 if rid in relevant_ids else 0.0 for rid in retrieved_ids[:k]]
+    ideal = sorted(relevances, reverse=True)
+    idcg = _dcg(ideal, k)
+    if idcg == 0.0:
+        return 0.0
+    return _dcg(relevances, k) / idcg
+
+
+@dataclass
+class RetrievalBenchmarkMetrics:
+    """Metrics for retrieval-focused benchmarks (LongMemEval, ConvoMem, MemBench)."""
+
+    system_name: str
+    benchmark_name: str
+    total_questions: int = 0
+
+    # R@k and NDCG@k for multiple k values
+    recall_any_at_k: dict[int, list[float]] = field(default_factory=dict)
+    recall_all_at_k: dict[int, list[float]] = field(default_factory=dict)
+    ndcg_at_k: dict[int, list[float]] = field(default_factory=dict)
+
+    # Per-category tracking (category_name -> k -> scores)
+    category_recall: dict[str, dict[int, list[float]]] = field(default_factory=dict)
+
+    # Latencies
+    latencies_store_ms: list[float] = field(default_factory=list)
+    latencies_search_ms: list[float] = field(default_factory=list)
+
+    def add_result(
+        self,
+        retrieved_ids: list[str],
+        relevant_ids: set[str],
+        k_values: tuple[int, ...] = (1, 3, 5, 10),
+        category: str = "",
+    ) -> None:
+        """Record one query result across all k values."""
+        self.total_questions += 1
+        for k in k_values:
+            self.recall_any_at_k.setdefault(k, []).append(
+                recall_at_k(retrieved_ids, relevant_ids, k)
+            )
+            self.recall_all_at_k.setdefault(k, []).append(
+                recall_all_at_k(retrieved_ids, relevant_ids, k)
+            )
+            self.ndcg_at_k.setdefault(k, []).append(
+                ndcg_at_k(retrieved_ids, relevant_ids, k)
+            )
+            if category:
+                cat_dict = self.category_recall.setdefault(category, {})
+                cat_dict.setdefault(k, []).append(
+                    recall_at_k(retrieved_ids, relevant_ids, k)
+                )
+
+    def avg_recall_any(self, k: int) -> float:
+        scores = self.recall_any_at_k.get(k, [])
+        return sum(scores) / len(scores) if scores else 0.0
+
+    def avg_recall_all(self, k: int) -> float:
+        scores = self.recall_all_at_k.get(k, [])
+        return sum(scores) / len(scores) if scores else 0.0
+
+    def avg_ndcg(self, k: int) -> float:
+        scores = self.ndcg_at_k.get(k, [])
+        return sum(scores) / len(scores) if scores else 0.0
+
+    def category_avg_recall(self, category: str, k: int) -> float:
+        scores = self.category_recall.get(category, {}).get(k, [])
+        return sum(scores) / len(scores) if scores else 0.0
+
+    @property
+    def avg_store_latency_ms(self) -> float:
+        return (
+            sum(self.latencies_store_ms) / len(self.latencies_store_ms)
+            if self.latencies_store_ms
+            else 0.0
+        )
+
+    @property
+    def avg_search_latency_ms(self) -> float:
+        return (
+            sum(self.latencies_search_ms) / len(self.latencies_search_ms)
+            if self.latencies_search_ms
+            else 0.0
+        )
+
+    def to_dict(self) -> dict:
+        result: dict = {
+            "system": self.system_name,
+            "benchmark": self.benchmark_name,
+            "total_questions": self.total_questions,
+        }
+        for k in sorted(self.recall_any_at_k.keys()):
+            result[f"R@{k}"] = round(self.avg_recall_any(k) * 100, 1)
+            result[f"R_all@{k}"] = round(self.avg_recall_all(k) * 100, 1)
+            result[f"NDCG@{k}"] = round(self.avg_ndcg(k) * 100, 1)
+        if self.category_recall:
+            result["categories"] = {}
+            for cat in sorted(self.category_recall.keys()):
+                result["categories"][cat] = {
+                    f"R@{k}": round(self.category_avg_recall(cat, k) * 100, 1)
+                    for k in sorted(self.category_recall[cat].keys())
+                }
+        result["avg_store_latency_ms"] = round(self.avg_store_latency_ms, 1)
+        result["avg_search_latency_ms"] = round(self.avg_search_latency_ms, 1)
+        return result
+
+
 @dataclass
 class BenchmarkMetrics:
     """Aggregated metrics for a benchmark run."""

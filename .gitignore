@@ -83,3 +83,9 @@ neuromem.yaml.local
 CLAUDE.md
 plan/
 live-test/
+reference/
+
+# Benchmark artifacts — dataset files + reproducible result JSONs
+data/
+benchmarks/results/
+benchmarks/datasets/.cache/

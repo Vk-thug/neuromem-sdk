@@ -53,6 +53,7 @@ class MemoryController:
         decay_engine: DecayEngine,
         embedding_model: str = "text-embedding-3-large",
         config: Optional[Any] = None,
+        verbatim: Optional[Any] = None,
     ):
         self.episodic = episodic
         self.semantic = semantic
@@ -63,6 +64,7 @@ class MemoryController:
         self.decay_engine = decay_engine
         self.embedding_model = embedding_model
         self.config = config or {}
+        self.verbatim = verbatim  # VerbatimStore or None
         self.auto_tagger = None
         self._retrieval_cache: Dict[str, Dict[str, Any]] = {}
 
@@ -95,6 +97,35 @@ class MemoryController:
             self.metrics = None
             self.ingest_worker = None
             self.maintenance_worker = None
+
+        # Brain system (v0.3.0) — gated on config
+        self.brain = None
+        brain_cfg = self._get_dict_config("brain")
+        if not brain_cfg and hasattr(self.config, "brain"):
+            try:
+                brain_cfg = self.config.brain()
+            except Exception:
+                brain_cfg = {}
+        if brain_cfg.get("enabled", False):
+            try:
+                from neuromem.brain.system import BrainSystem
+
+                # Use the episodic backend for BrainState persistence
+                backend = self.episodic.backend if hasattr(self.episodic, "backend") else None
+                if backend:
+                    self.brain = BrainSystem(
+                        user_id=getattr(self.episodic, "user_id", "default"),
+                        backend=backend,
+                        config=brain_cfg,
+                    )
+                    logger.info("BrainSystem initialized", extra={"user_id": self.brain.user_id})
+            except Exception as e:
+                logger.warning(
+                    "Failed to initialize BrainSystem, continuing without brain",
+                    exc_info=True,
+                    extra={"error": str(e)},
+                )
+                self.brain = None
 
         # AutoTagger
         if self.config and hasattr(self.config, "tagging"):
@@ -162,6 +193,23 @@ class MemoryController:
         all_items = sem_i + proc_i + epi_i
         all_sims = sem_s + proc_s + epi_s
 
+        # Verbatim retrieval (v0.4.0) — merge raw chunks with cognitive results
+        if self.verbatim is not None:
+            try:
+                verb_items, verb_sims = self.verbatim.query(embedding, k=k * 2)
+                if verb_items:
+                    all_items, all_sims = self._merge_verbatim_results(
+                        cognitive_items=all_items,
+                        cognitive_sims=all_sims,
+                        verbatim_items=verb_items,
+                        verbatim_sims=verb_sims,
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Verbatim retrieval failed, using cognitive only",
+                    extra={"error": str(e)},
+                )
+
         if not all_items:
             return []
 
@@ -182,12 +230,112 @@ class MemoryController:
                     similarity_weight=rc.get("similarity_weight", 0.5),
                     recency_half_life_days=rc.get("recency_half_life_days", 30),
                 )
-                top_items = hr.retrieve(embedding, all_items, all_sims, k=k)
-            except Exception as e:
-                logger.warning("Hybrid retrieval failed", exc_info=True, extra={"error": str(e)})
+                # Retrieve a larger pool so hybrid boosts have room to re-rank
+                pool_k = max(k * 3, 30)
+                top_items = hr.retrieve(embedding, all_items, all_sims, k=pool_k)
+            except Exception as exc_hybrid:
+                logger.warning(
+                    "Hybrid retrieval failed",
+                    exc_info=True,
+                    extra={"error": str(exc_hybrid)},
+                )
                 top_items = self._basic_rank(all_items, all_sims, k, query_text)
         else:
             top_items = self._basic_rank(all_items, all_sims, k, query_text)
+
+        # Apply hybrid signal boosts universally (v0.4.0)
+        # Keyword overlap, quoted phrase, person name, and temporal boosts
+        # fire AFTER ranking, regardless of which initial path was taken.
+        # This fixes the bug where boosts were only applied in _basic_rank.
+        if query_text and top_items:
+            try:
+                from neuromem.core.hybrid_boosts import apply_hybrid_boosts
+                from neuromem.core.bm25_scorer import BM25Scorer
+
+                item_sim_lookup: Dict[str, float] = {
+                    item.id: all_sims[i] if i < len(all_sims) else 0.5
+                    for i, item in enumerate(all_items)
+                }
+                scored = [(item, item_sim_lookup.get(item.id, 0.5)) for item in top_items]
+
+                # Step 1: Apply heuristic boosts (keyword overlap, quoted phrases, etc.)
+                scored = apply_hybrid_boosts(scored, query_text)
+
+                # Step 2: BM25 re-ranking — proper IDF-weighted lexical scoring
+                # mixed with the boosted similarity score. BM25 fixes the cases
+                # where embeddings miss precise lexical matches (proper nouns,
+                # IDs, dates, and rare-term queries).
+                #
+                # Clean cognitive wrapping ("User: X\nAssistant: Memory stored.")
+                # before BM25 scoring. The wrapping tokens have high IDF
+                # (appearing in ALL cognitive memories) which dilutes useful
+                # term frequencies.
+                if len(scored) >= 2:
+                    documents = []
+                    for item, _ in scored:
+                        c = getattr(item, "content", "")
+                        if "\nAssistant: Memory stored." in c:
+                            c = c.split("\nAssistant: Memory stored.")[0]
+                        if c.startswith("User: "):
+                            c = c[6:]
+                        documents.append(c)
+                    bm25 = BM25Scorer(documents)
+                    bm25_scores = bm25.normalized_score(query_text)
+                    scored = [
+                        (item, 0.50 * sim + 0.50 * bm25_scores[i])
+                        for i, (item, sim) in enumerate(scored)
+                    ]
+                    scored.sort(key=lambda x: x[1], reverse=True)
+
+                # Step 3: Cross-encoder re-ranking of top-30 (the precision step)
+                # Cross-encoders take (query, doc) pairs as joint input and
+                # produce a much more accurate relevance score than bi-encoders.
+                # Used by Bing/Google as the final re-ranker.
+                if len(scored) >= 2:
+                    try:
+                        from neuromem.core.cross_encoder_reranker import (
+                            rerank_with_cross_encoder,
+                        )
+
+                        scored = rerank_with_cross_encoder(
+                            query=query_text,
+                            items_with_scores=scored,
+                            top_k=min(30, len(scored)),
+                            blend_weight=0.9,
+                        )
+                    except Exception:
+                        logger.debug("Cross-encoder unavailable, skipping", exc_info=True)
+
+                # Step 4: LLM batch re-rank of top-5 (optional, gated by config)
+                # For queries requiring REASONING (implicit connections,
+                # preferences, abstention), the cross-encoder is insufficient.
+                # An LLM directly evaluates which top-5 candidate best matches
+                # the query intent. Single batched LLM call per query, cached.
+                use_llm_rerank = False
+                if hasattr(self.config, "retrieval"):
+                    use_llm_rerank = self.config.retrieval().get("llm_rerank_enabled", False)
+                if use_llm_rerank and len(scored) >= 2:
+                    try:
+                        from neuromem.core.llm_reranker import llm_rerank
+
+                        rc = self.config.retrieval()
+                        scored = llm_rerank(
+                            query=query_text,
+                            items_with_scores=scored,
+                            top_k=min(8, len(scored)),
+                            model=rc.get("llm_rerank_model", "qwen2.5-coder:7b"),
+                            provider=rc.get("llm_rerank_provider", "ollama"),
+                            blend_weight=rc.get("llm_rerank_blend", 0.4),
+                        )
+                    except Exception:
+                        logger.debug("LLM rerank unavailable, skipping", exc_info=True)
+
+                top_items = [item for item, _ in scored[:k]]
+            except Exception:
+                logger.warning("Hybrid boosts/BM25/cross-encoder failed", exc_info=True)
+                top_items = top_items[:k]
+        else:
+            top_items = top_items[:k]
 
         # Keyword fallback: only run when top vector similarity is weak.
         best_sim = max(all_sims) if all_sims else 0.0
@@ -196,6 +344,18 @@ class MemoryController:
 
         # Conflict detection
         top_items = self._detect_and_resolve_conflicts(top_items)
+
+        # Brain system re-ranking (v0.3.0) — CA1 value-based gating
+        if self.brain is not None:
+            try:
+                ranked_with_scores = [
+                    (item, all_sims[all_items.index(item)] if item in all_items else 0.5)
+                    for item in top_items
+                ]
+                re_ranked = self.brain.on_retrieve(ranked_with_scores, task_type)
+                top_items = [item for item, _ in re_ranked[:k]]
+            except Exception:
+                logger.warning("BrainSystem.on_retrieve failed in controller", exc_info=True)
 
         # Build O(1) lookup for similarity scores (replaces O(n) list.index per item)
         item_sim_map: Dict[str, float] = {
@@ -232,15 +392,141 @@ class MemoryController:
 
         return top_items
 
+    def retrieve_verbatim_only(
+        self,
+        embedding: List[float],
+        query_text: str,
+        k: int = 8,
+        bm25_blend: float = 0.5,
+        ce_blend: float = 0.9,
+        ce_top_k: int = 30,
+    ) -> List[MemoryItem]:
+        """
+        Deterministic 2-stage retrieval against verbatim chunks only.
+
+        Pipeline: bi-encoder pool → BM25 blend → cross-encoder rerank → top-k.
+        Skips the cognitive pipeline (semantic/procedural/episodic ranking,
+        conflict detection, brain re-ranking, decay/reconsolidation). The
+        verbatim store is already ground-truth (confidence=1.0), so the
+        cognitive layers only add noise on MemBench-style exact-fact retrieval.
+
+        See: feedback_pipeline_complexity_vs_simplicity.md and
+        feedback_ce_dominance_trap.md for why 2-stage wins on MemBench.
+        """
+        if self.verbatim is None:
+            logger.warning("retrieve_verbatim_only called but verbatim store disabled")
+            return []
+
+        pool_k = max(k * 4, 30)
+        items, sims = self.verbatim.query(embedding, k=pool_k)
+        if not items:
+            return []
+
+        scored: List[tuple] = list(zip(items, sims))
+
+        # Stage 1: BM25 lexical blend — catches exact-term matches
+        # (proper nouns, phone numbers, dates, rare tokens) that embeddings miss.
+        if len(scored) >= 2 and bm25_blend > 0:
+            try:
+                from neuromem.core.bm25_scorer import BM25Scorer
+
+                documents = [getattr(it, "content", "") for it, _ in scored]
+                bm25 = BM25Scorer(documents)
+                bm25_scores = bm25.normalized_score(query_text)
+                scored = [
+                    (it, (1 - bm25_blend) * sim + bm25_blend * bm25_scores[i])
+                    for i, (it, sim) in enumerate(scored)
+                ]
+                scored.sort(key=lambda x: x[1], reverse=True)
+            except Exception:
+                logger.debug("BM25 stage failed in verbatim-only path", exc_info=True)
+
+        # Stage 2: cross-encoder precision rerank on top-N
+        if len(scored) >= 2 and ce_blend > 0:
+            try:
+                from neuromem.core.cross_encoder_reranker import (
+                    rerank_with_cross_encoder,
+                )
+
+                scored = rerank_with_cross_encoder(
+                    query=query_text,
+                    items_with_scores=scored,
+                    top_k=min(ce_top_k, len(scored)),
+                    blend_weight=ce_blend,
+                )
+            except Exception:
+                logger.debug("Cross-encoder unavailable in verbatim-only path", exc_info=True)
+
+        return [it for it, _ in scored[:k]]
+
     def _basic_rank(
         self, items: List[MemoryItem], sims: List[float], k: int, query_text: str = None
     ) -> List[MemoryItem]:
+        """Basic ranking path — hybrid boosts applied universally in retrieve()."""
         ranked = self.retriever.rank(items, sims)
         if query_text:
             ranked = self.retriever.boost_keyword_matches(ranked, query_text)
         diverse = self.retriever.apply_inhibition(ranked)
         filtered = self.retriever.filter_by_confidence(diverse)
-        return [item for item, score in filtered[:k]]
+        # Return a larger pool so the universal hybrid_boosts step has room to work
+        pool_k = max(k * 3, 30)
+        return [item for item, score in filtered[:pool_k]]
+
+    def _merge_verbatim_results(
+        self,
+        cognitive_items: List[MemoryItem],
+        cognitive_sims: List[float],
+        verbatim_items: List[MemoryItem],
+        verbatim_sims: List[float],
+    ) -> tuple:
+        """
+        Merge cognitive and verbatim results, deduplicating by content.
+
+        After the embed-from-user_input fix, cognitive memories and verbatim
+        chunks for the same content produce nearly identical embeddings and
+        similarity scores. Naive merging creates duplicates that halve the
+        effective retrieval depth. This dedup keeps only the highest-similarity
+        version of each unique content.
+
+        Verbatim chunks are PREFERRED on ties because they have:
+          - Cleaner content (no User:/Assistant: wrapping)
+          - Higher base salience (0.85 vs cognitive ~0.65)
+          - confidence=1.0 (ground truth)
+        """
+
+        def _content_key(content: str) -> str:
+            """Normalize content for dedup: strip User:/Assistant: wrapping."""
+            text = content or ""
+            if text.startswith("User: "):
+                text = text[6:]
+            if "\nAssistant: Memory stored." in text:
+                text = text.split("\nAssistant: Memory stored.")[0]
+            # Use first 200 chars as fingerprint (full hash would also work)
+            return text.strip()[:200].lower()
+
+        # Build content-keyed dedup map (verbatim wins ties)
+        content_map: Dict[str, tuple] = {}  # content_key -> (item, best_sim, source)
+
+        # Add verbatim FIRST so they win ties (verbatim is preferred)
+        for item, sim in zip(verbatim_items, verbatim_sims):
+            key = _content_key(getattr(item, "content", ""))
+            if key not in content_map or sim > content_map[key][1]:
+                content_map[key] = (item, sim, "verbatim")
+
+        # Add cognitive only if we don't already have this content
+        for item, sim in zip(cognitive_items, cognitive_sims):
+            key = _content_key(getattr(item, "content", ""))
+            if key not in content_map:
+                content_map[key] = (item, sim, "cognitive")
+            elif sim > content_map[key][1] and content_map[key][2] == "cognitive":
+                content_map[key] = (item, sim, "cognitive")
+
+        # Sort by similarity descending
+        sorted_entries = sorted(content_map.values(), key=lambda x: x[1], reverse=True)
+        merged_items = [e[0] for e in sorted_entries]
+        merged_sims = [e[1] for e in sorted_entries]
+
+        return merged_items, merged_sims
 
     def _detect_and_resolve_conflicts(self, top_items: List[MemoryItem]) -> List[MemoryItem]:
         """Detect and resolve contradicting memories in results."""
@@ -282,7 +568,13 @@ class MemoryController:
     # OBSERVE
     # ----------------------------------------------------------------
 
-    def observe(self, user_input: str, assistant_output: str, user_id: str):
+    def observe(
+        self,
+        user_input: str,
+        assistant_output: str,
+        user_id: str,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ):
         """Observe and store a user-assistant interaction."""
         user_id = validate_user_id(user_id)
         user_input = validate_content(user_input, max_length=50000, field_name="user_input")
@@ -307,15 +599,26 @@ class MemoryController:
             if self.metrics:
                 self.metrics.increment("observe.queued")
         else:
-            self._observe_sync(user_input, assistant_output, user_id)
+            self._observe_sync(user_input, assistant_output, user_id, extra_metadata)
 
-    def _observe_sync(self, user_input: str, assistant_output: str, user_id: str):
+    def _observe_sync(
+        self,
+        user_input: str,
+        assistant_output: str,
+        user_id: str,
+        extra_metadata: Optional[Dict[str, Any]] = None,
+    ):
         from neuromem.core.graph import extract_entities
 
         content = f"User: {user_input}\nAssistant: {assistant_output}"
-        embedding = get_embedding(content, self.embedding_model)
+        # Embed the USER input only (cleaner semantic signal for retrieval).
+        # Wrapping content with "User:"/"Assistant:" prefixes used to pollute
+        # the embedding — we still STORE the wrapped content for context
+        # but compute the embedding from the clean user text.
+        embedding_source = user_input if user_input.strip() else content
+        embedding = get_embedding(embedding_source, self.embedding_model)
         tags = []
-        metadata = {}
+        metadata: Dict[str, Any] = dict(extra_metadata) if extra_metadata else {}
 
         if (
             self.config
@@ -330,11 +633,15 @@ class MemoryController:
                 )
                 enrichment = tagger.enrich_memory(content)
                 tags = enrichment.get("tags", [])
-                metadata = {
-                    "intent": enrichment.get("intent"),
-                    "sentiment": enrichment.get("sentiment", {}).get("sentiment"),
-                    "entities": enrichment.get("entities", []),
-                }
+                # Merge (don't overwrite) so extra_metadata from the caller
+                # is preserved alongside auto-tagging enrichment.
+                metadata.update(
+                    {
+                        "intent": enrichment.get("intent"),
+                        "sentiment": enrichment.get("sentiment", {}).get("sentiment"),
+                        "entities": enrichment.get("entities", []),
+                    }
+                )
             except Exception as e:
                 logger.warning("Auto-tagging failed", exc_info=True, extra={"error": str(e)})
 
@@ -346,6 +653,15 @@ class MemoryController:
         if entities:
             self.graph.register_entities(memory_id, entities)
             metadata["entities"] = entities
+
+        # Topic detection (v0.4.0) — auto-classify for metadata filtering
+        try:
+            from neuromem.core.topic_detector import detect_topic
+
+            topic = detect_topic(user_input)
+            metadata["topic"] = topic
+        except Exception:
+            pass
 
         memory_item = MemoryItem(
             id=memory_id,
@@ -364,7 +680,28 @@ class MemoryController:
             tags=tags,
             metadata=metadata,
         )
+        # Brain system enrichment (v0.3.0)
+        if self.brain is not None:
+            memory_item = self.brain.on_observe(memory_item)
+
         self.episodic.store(memory_item)
+
+        # Verbatim storage (v0.4.0) — store raw text chunks for high-recall retrieval
+        if self.verbatim is not None:
+            try:
+                # Propagate ALL metadata (including benchmark corpus_id, timestamp, etc.)
+                verb_meta = {**metadata, "source": "user", "cognitive_id": memory_id}
+                self.verbatim.store(content=user_input, metadata=verb_meta)
+                # Also store assistant output if substantive (not just "Memory stored.")
+                if assistant_output and len(assistant_output) > 20:
+                    asst_meta = {**metadata, "source": "assistant", "cognitive_id": memory_id}
+                    self.verbatim.store(content=assistant_output, metadata=asst_meta)
+            except Exception as e:
+                logger.warning(
+                    "Verbatim storage failed, continuing with cognitive only",
+                    extra={"error": str(e)},
+                )
+
         self.session.add_turn(user_input, assistant_output)
 
     # ----------------------------------------------------------------
@@ -512,6 +849,34 @@ class MemoryController:
                 self.graph.remove_all_links(memory_id)
                 return
         raise ValueError("Memory not found")
+
+    # ----------------------------------------------------------------
+    # BRAIN SYSTEM (v0.3.0)
+    # ----------------------------------------------------------------
+
+    def reinforce(self, memory_id: str, reward: float = 1.0, task_type: str = "chat") -> None:
+        """Update TD values based on retrieval feedback.
+
+        Called when a user/agent marks a retrieved memory as helpful (+1) or unhelpful (-1).
+        """
+        if self.brain is None:
+            return
+        memory = self._find_memory_by_id(memory_id)
+        if memory is None:
+            return
+        self.brain.reinforce(memory_id, memory.embedding, task_type, reward)
+
+    def get_working_memory(self) -> List[MemoryItem]:
+        """Return memories currently in the PFC working memory buffer."""
+        if self.brain is None:
+            return []
+        wm_ids = self.brain.get_working_memory_ids()
+        items = []
+        for mid in wm_ids:
+            mem = self._find_memory_by_id(mid)
+            if mem:
+                items.append(mem)
+        return items
 
     # ----------------------------------------------------------------
     # TAG QUERIES

@@ -2,19 +2,35 @@
 """
 NeuroMem Benchmark Suite — CLI Entry Point
 
-Compare NeuroMem against Mem0, Zep, and LangMem on the LoCoMo benchmark.
+Compare NeuroMem against Mem0, Zep, LangMem, and MemPalace on industry benchmarks.
 
 Usage:
-    # Quick test (1 conversation, no LLM judge)
+    # Quick LoCoMo test (1 conversation, no LLM judge)
     python -m benchmarks.run_benchmark --quick
 
     # Full LoCoMo benchmark with NeuroMem only
     python -m benchmarks.run_benchmark --systems neuromem
 
-    # Head-to-head: NeuroMem vs Mem0
-    python -m benchmarks.run_benchmark --systems neuromem mem0
+    # Head-to-head: NeuroMem vs MemPalace on LongMemEval
+    python -m benchmarks.run_benchmark \
+        --benchmark longmemeval \
+        --systems neuromem mempalace
 
-    # Full benchmark with all options
+    # Run all benchmarks
+    python -m benchmarks.run_benchmark \
+        --benchmark all \
+        --systems neuromem mempalace
+
+    # ConvoMem benchmark (downloads from HuggingFace)
+    python -m benchmarks.run_benchmark --benchmark convomem --systems neuromem
+
+    # MemBench benchmark (requires local data)
+    python -m benchmarks.run_benchmark \
+        --benchmark membench \
+        --systems neuromem \
+        --membench-dir data/FirstAgent
+
+    # Full LoCoMo benchmark with all options
     python -m benchmarks.run_benchmark \
         --systems neuromem mem0 \
         --conversations 5 \
@@ -53,10 +69,12 @@ except ImportError:
 
 from benchmarks.adapters.base import MemorySystemAdapter
 from benchmarks.datasets.locomo_loader import CATEGORY_NAMES, print_dataset_stats, load_locomo
-from benchmarks.evaluators.metrics import BenchmarkMetrics
+from benchmarks.evaluators.metrics import BenchmarkMetrics, RetrievalBenchmarkMetrics
 from benchmarks.runners.locomo_runner import RunConfig, run_locomo_benchmark
 from benchmarks.runners.latency_runner import run_latency_benchmark
 
+AVAILABLE_SYSTEMS = ("neuromem", "mem0", "langmem", "zep", "mempalace")
+AVAILABLE_BENCHMARKS = ("locomo", "longmemeval", "convomem", "membench", "all")
 
 RESULTS_DIR = Path(__file__).parent / "results"
 
@@ -75,15 +93,38 @@ def _get_adapter(name: str) -> MemorySystemAdapter:
     elif name == "zep":
         from benchmarks.adapters.zep_adapter import ZepAdapter
         return ZepAdapter()
+    elif name == "mempalace":
+        from benchmarks.adapters.mempalace_adapter import MemPalaceAdapter
+        return MemPalaceAdapter()
     else:
         raise ValueError(
-            f"Unknown system: {name}. Available: neuromem, mem0, langmem, zep"
+            f"Unknown system: {name}. Available: {', '.join(AVAILABLE_SYSTEMS)}"
         )
 
 
 def _build_adapter_config(args: argparse.Namespace) -> dict:
     """Build adapter configuration from CLI args."""
     import os
+
+    # Determine vector size based on embedding provider/model
+    if args.embedding_provider == "sentence-transformers":
+        # all-MiniLM-L6-v2 = 384, all-mpnet-base-v2 = 768, etc.
+        st_dims = {
+            "all-MiniLM-L6-v2": 384,
+            "all-MiniLM-L12-v2": 384,
+            "all-mpnet-base-v2": 768,
+            "multi-qa-MiniLM-L6-cos-v1": 384,
+            "multi-qa-mpnet-base-dot-v1": 768,
+            "BAAI/bge-small-en-v1.5": 384,
+            "BAAI/bge-base-en-v1.5": 768,
+            "BAAI/bge-large-en-v1.5": 1024,
+        }
+        vector_size = st_dims.get(args.embedding_model, 384)
+    elif args.embedding_provider == "ollama":
+        vector_size = 768
+    else:  # openai
+        vector_size = 1536
+
     return {
         "backend": args.backend,
         "qdrant_host": args.qdrant_host,
@@ -91,11 +132,17 @@ def _build_adapter_config(args: argparse.Namespace) -> dict:
         "collection_name": "bench_" + str(int(time.time())),
         "embedding_model": args.embedding_model,
         "embedding_provider": args.embedding_provider,
-        "vector_size": 768 if args.embedding_provider == "ollama" else 1536,
+        "vector_size": vector_size,
         "ollama_base_url": args.ollama_base_url,
         "llm_provider": args.answer_provider,
         "llm_model": args.answer_model,
         "zep_api_key": os.environ.get("ZEP_API_KEY", ""),
+        "use_hyde": getattr(args, "hyde", False),
+        "hyde_model": getattr(args, "hyde_model", "qwen2.5-coder:7b"),
+        "use_llm_rerank": getattr(args, "llm_rerank", False),
+        "verbatim_only": getattr(args, "verbatim_only", False),
+        "bm25_blend": getattr(args, "bm25_blend", 0.5),
+        "ce_blend": getattr(args, "ce_blend", 0.9),
     }
 
 
@@ -184,29 +231,117 @@ def _print_plain_table(all_metrics: list[BenchmarkMetrics]) -> None:
     print("=" * len(header))
 
 
+def _print_retrieval_table(all_metrics: list[RetrievalBenchmarkMetrics]) -> None:
+    """Print a formatted table for retrieval benchmarks."""
+    if not all_metrics:
+        return
+
+    benchmark_name = all_metrics[0].benchmark_name
+
+    try:
+        from rich.console import Console
+        from rich.table import Table
+
+        console = Console()
+
+        table = Table(title=f"{benchmark_name} Benchmark Results", show_lines=True)
+        table.add_column("Metric", style="bold")
+        for m in all_metrics:
+            table.add_column(m.system_name, justify="right")
+
+        table.add_row(
+            "Total Questions",
+            *[str(m.total_questions) for m in all_metrics],
+        )
+
+        # R@k rows
+        k_values = sorted(all_metrics[0].recall_any_at_k.keys())
+        for k in k_values:
+            table.add_row(
+                f"R@{k}",
+                *[f"{m.avg_recall_any(k) * 100:.1f}%" for m in all_metrics],
+            )
+
+        # NDCG@k for key values
+        for k in [5, 10]:
+            if k in k_values:
+                table.add_row(
+                    f"NDCG@{k}",
+                    *[f"{m.avg_ndcg(k) * 100:.1f}%" for m in all_metrics],
+                )
+
+        table.add_row(
+            "Avg Search Latency (ms)",
+            *[f"{m.avg_search_latency_ms:.1f}" for m in all_metrics],
+        )
+
+        console.print(table)
+
+        # Per-category table
+        all_cats: set[str] = set()
+        for m in all_metrics:
+            all_cats.update(m.category_recall.keys())
+
+        if all_cats:
+            cat_table = Table(title=f"{benchmark_name} R@5 by Category", show_lines=True)
+            cat_table.add_column("Category", style="bold")
+            for m in all_metrics:
+                cat_table.add_column(m.system_name, justify="right")
+
+            for cat in sorted(all_cats):
+                values = [f"{m.category_avg_recall(cat, 5) * 100:.1f}%" for m in all_metrics]
+                cat_table.add_row(cat, *values)
+
+            console.print(cat_table)
+
+    except ImportError:
+        # Plain text fallback
+        print(f"\n{'=' * 60}")
+        print(f"{benchmark_name} Benchmark Results")
+        print(f"{'=' * 60}")
+        for m in all_metrics:
+            print(f"\n{m.system_name}:")
+            print(f"  Total: {m.total_questions}")
+            for k in sorted(m.recall_any_at_k.keys()):
+                print(f"  R@{k}: {m.avg_recall_any(k) * 100:.1f}%")
+            print(f"  Avg search: {m.avg_search_latency_ms:.1f}ms")
+
+
 def _save_results(
-    all_metrics: list[BenchmarkMetrics],
+    all_metrics: list,
     all_detailed: dict[str, list[dict]],
     args: argparse.Namespace,
+    benchmark_name: str = "locomo",
 ) -> Path:
     """Save results to JSON."""
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = RESULTS_DIR / f"locomo_{timestamp}.json"
+    output_file = RESULTS_DIR / f"{benchmark_name}_{timestamp}.json"
+
+    config_dict: dict = {
+        "systems": args.systems,
+        "benchmark": getattr(args, "benchmark", "locomo"),
+    }
+
+    # Add LoCoMo-specific config if available
+    if hasattr(args, "backend"):
+        config_dict["backend"] = args.backend
+    if hasattr(args, "embedding_model"):
+        config_dict["embedding_model"] = args.embedding_model
+        config_dict["embedding_provider"] = args.embedding_provider
+    if hasattr(args, "search_k"):
+        config_dict["search_k"] = args.search_k
+    if getattr(args, "verbatim_only", False):
+        config_dict["verbatim_only"] = True
+        config_dict["bm25_blend"] = args.bm25_blend
+        config_dict["ce_blend"] = args.ce_blend
+    if getattr(args, "hyde", False):
+        config_dict["use_hyde"] = True
 
     output = {
         "timestamp": datetime.now().isoformat(),
-        "config": {
-            "systems": args.systems,
-            "backend": args.backend,
-            "embedding_model": args.embedding_model,
-            "embedding_provider": args.embedding_provider,
-            "answer_model": args.answer_model,
-            "conversations": args.conversations,
-            "categories": args.categories,
-            "ingestion_mode": args.ingestion_mode,
-            "search_k": args.search_k,
-        },
+        "benchmark": benchmark_name,
+        "config": config_dict,
         "summary": [m.to_dict() for m in all_metrics],
         "detailed": all_detailed,
     }
@@ -228,8 +363,16 @@ def main() -> None:
         "--systems",
         nargs="+",
         default=["neuromem"],
-        choices=["neuromem", "mem0", "langmem", "zep"],
+        choices=list(AVAILABLE_SYSTEMS),
         help="Memory systems to benchmark (default: neuromem)",
+    )
+
+    # Benchmark selection
+    parser.add_argument(
+        "--benchmark",
+        choices=list(AVAILABLE_BENCHMARKS),
+        default="locomo",
+        help="Benchmark to run: locomo, longmemeval, convomem, membench, all (default: locomo)",
     )
 
     # Dataset
@@ -275,10 +418,51 @@ def main() -> None:
     parser.add_argument("--qdrant-host", default="localhost")
     parser.add_argument("--qdrant-port", type=int, default=6333)
 
+    # HyDE
+    parser.add_argument(
+        "--hyde",
+        action="store_true",
+        help="Enable HyDE (Hypothetical Document Embeddings) for query transformation",
+    )
+    parser.add_argument(
+        "--hyde-model",
+        default="qwen2.5-coder:7b",
+        help="LLM model for HyDE generation (default: qwen2.5-coder:7b)",
+    )
+
+    # LLM-based final re-ranking
+    parser.add_argument(
+        "--llm-rerank",
+        action="store_true",
+        help="Enable LLM-based re-ranking of top-5 candidates (slower, more accurate)",
+    )
+
+    # Verbatim-only retrieval (MemBench / exact-fact benchmarks)
+    parser.add_argument(
+        "--verbatim-only",
+        action="store_true",
+        help=(
+            "Skip cognitive pipeline; retrieve from verbatim store with "
+            "BM25 + cross-encoder only. Recommended for MemBench."
+        ),
+    )
+    parser.add_argument(
+        "--bm25-blend",
+        type=float,
+        default=0.5,
+        help="BM25 weight in verbatim-only mode (0.0-1.0, default: 0.5)",
+    )
+    parser.add_argument(
+        "--ce-blend",
+        type=float,
+        default=0.9,
+        help="Cross-encoder weight in verbatim-only mode (0.0-1.0, default: 0.9)",
+    )
+
     # Embeddings
     parser.add_argument(
         "--embedding-provider",
-        choices=["ollama", "openai"],
+        choices=["ollama", "openai", "sentence-transformers"],
         default="ollama",
         help="Embedding provider (default: ollama)",
     )
@@ -317,11 +501,30 @@ def main() -> None:
         default="ollama",
     )
 
+    # Benchmark-specific
+    parser.add_argument(
+        "--membench-dir",
+        default="data/FirstAgent",
+        help="Path to MemBench FirstAgent/ data directory (default: data/FirstAgent)",
+    )
+    parser.add_argument(
+        "--max-questions",
+        type=int,
+        default=None,
+        help="Max questions for retrieval benchmarks (LongMemEval, ConvoMem, MemBench)",
+    )
+    parser.add_argument(
+        "--convomem-categories",
+        nargs="+",
+        default=None,
+        help="ConvoMem categories to include",
+    )
+
     # Modes
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="Quick test: 1 conversation, no judge, categories 1+4 only",
+        help="Quick test: limited questions, no judge",
     )
     parser.add_argument(
         "--latency",
@@ -345,6 +548,8 @@ def main() -> None:
         args.categories = [1, 4]
         args.no_judge = True
         args.max_qa = 20
+        if args.max_questions is None:
+            args.max_questions = 20
 
     # Dataset stats mode
     if args.dataset_stats:
@@ -356,20 +561,22 @@ def main() -> None:
     print("NeuroMem Benchmark Suite")
     print("=" * 60)
     print(f"Systems: {', '.join(args.systems)}")
+    print(f"Benchmark: {args.benchmark}")
     print(f"Backend: {args.backend}")
     print(f"Embeddings: {args.embedding_provider}/{args.embedding_model}")
-    print(f"Answer LLM: {args.answer_provider}/{args.answer_model}")
     if args.latency:
-        print(f"Mode: Latency benchmark")
-    else:
-        print(f"Mode: LoCoMo QA benchmark")
+        print("Mode: Latency benchmark")
+    elif args.benchmark == "locomo":
+        print(f"Answer LLM: {args.answer_provider}/{args.answer_model}")
         print(f"Ingestion: {args.ingestion_mode}")
         print(f"Conversations: {args.conversations or 'all 10'}")
         print(f"Categories: {args.categories or 'all 5'}")
         print(f"LLM Judge: {'disabled' if args.no_judge else args.judge_model}")
+    else:
+        print(f"Max questions: {args.max_questions or 'all'}")
     print("=" * 60)
 
-    # ── Latency benchmark ──
+    # Latency benchmark
     if args.latency:
         latency_results = []
         for system_name in args.systems:
@@ -382,7 +589,6 @@ def main() -> None:
             result = run_latency_benchmark(adapter, adapter_config)
             latency_results.append(result)
 
-        # Save latency results
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_file = RESULTS_DIR / f"latency_{timestamp}.json"
@@ -392,13 +598,31 @@ def main() -> None:
         print(f"\nLatency results saved to: {output_file}")
         return
 
-    # ── LoCoMo QA benchmark ──
+    # Determine which benchmarks to run
+    if args.benchmark == "all":
+        benchmarks_to_run = ["locomo", "longmemeval", "convomem", "membench"]
+    else:
+        benchmarks_to_run = [args.benchmark]
+
+    for bench_name in benchmarks_to_run:
+        if bench_name == "locomo":
+            _run_locomo(args)
+        elif bench_name == "longmemeval":
+            _run_longmemeval(args)
+        elif bench_name == "convomem":
+            _run_convomem(args)
+        elif bench_name == "membench":
+            _run_membench(args)
+
+
+def _run_locomo(args: argparse.Namespace) -> None:
+    """Run the LoCoMo QA benchmark."""
     all_metrics: list[BenchmarkMetrics] = []
     all_detailed: dict[str, list[dict]] = {}
 
     for system_name in args.systems:
         print(f"\n{'#' * 60}")
-        print(f"# Benchmarking: {system_name}")
+        print(f"# LoCoMo: {system_name}")
         print(f"{'#' * 60}")
 
         adapter = _get_adapter(system_name)
@@ -427,15 +651,134 @@ def main() -> None:
 
         all_metrics.append(metrics)
         all_detailed[system_name] = detailed
-
-        # Clean up
         adapter.teardown()
 
-    # Print comparison
     _print_comparison_table(all_metrics)
+    _save_results(all_metrics, all_detailed, args, benchmark_name="locomo")
 
-    # Save results
-    _save_results(all_metrics, all_detailed, args)
+
+def _run_longmemeval(args: argparse.Namespace) -> None:
+    """Run the LongMemEval retrieval benchmark."""
+    from benchmarks.runners.longmemeval_runner import (
+        LongMemEvalConfig,
+        run_longmemeval_benchmark,
+    )
+
+    all_metrics: list[RetrievalBenchmarkMetrics] = []
+    all_detailed: dict[str, list[dict]] = {}
+
+    for system_name in args.systems:
+        print(f"\n{'#' * 60}")
+        print(f"# LongMemEval: {system_name}")
+        print(f"{'#' * 60}")
+
+        adapter = _get_adapter(system_name)
+        adapter_config = _build_adapter_config(args)
+
+        run_config = LongMemEvalConfig(
+            max_questions=args.max_questions,
+            search_k=args.search_k,
+            verbose=args.verbose,
+        )
+
+        t0 = time.perf_counter()
+        metrics, detailed = run_longmemeval_benchmark(
+            adapter, adapter_config, run_config
+        )
+        elapsed = time.perf_counter() - t0
+
+        print(f"\n{system_name} completed in {elapsed:.1f}s")
+
+        all_metrics.append(metrics)
+        all_detailed[system_name] = detailed
+        adapter.teardown()
+
+    _print_retrieval_table(all_metrics)
+    _save_results(all_metrics, all_detailed, args, benchmark_name="longmemeval")
+
+
+def _run_convomem(args: argparse.Namespace) -> None:
+    """Run the ConvoMem retrieval benchmark."""
+    from benchmarks.runners.convomem_runner import (
+        ConvoMemConfig,
+        run_convomem_benchmark,
+    )
+
+    all_metrics: list[RetrievalBenchmarkMetrics] = []
+    all_detailed: dict[str, list[dict]] = {}
+
+    for system_name in args.systems:
+        print(f"\n{'#' * 60}")
+        print(f"# ConvoMem: {system_name}")
+        print(f"{'#' * 60}")
+
+        adapter = _get_adapter(system_name)
+        adapter_config = _build_adapter_config(args)
+
+        cats = tuple(args.convomem_categories) if args.convomem_categories else None
+
+        run_config = ConvoMemConfig(
+            max_per_category=args.max_questions,
+            categories=cats,
+            search_k=args.search_k,
+            verbose=args.verbose,
+        )
+
+        t0 = time.perf_counter()
+        metrics, detailed = run_convomem_benchmark(
+            adapter, adapter_config, run_config
+        )
+        elapsed = time.perf_counter() - t0
+
+        print(f"\n{system_name} completed in {elapsed:.1f}s")
+
+        all_metrics.append(metrics)
+        all_detailed[system_name] = detailed
+        adapter.teardown()
+
+    _print_retrieval_table(all_metrics)
+    _save_results(all_metrics, all_detailed, args, benchmark_name="convomem")
+
+
+def _run_membench(args: argparse.Namespace) -> None:
+    """Run the MemBench retrieval benchmark."""
+    from benchmarks.runners.membench_runner import (
+        MemBenchConfig,
+        run_membench_benchmark,
+    )
+
+    all_metrics: list[RetrievalBenchmarkMetrics] = []
+    all_detailed: dict[str, list[dict]] = {}
+
+    for system_name in args.systems:
+        print(f"\n{'#' * 60}")
+        print(f"# MemBench: {system_name}")
+        print(f"{'#' * 60}")
+
+        adapter = _get_adapter(system_name)
+        adapter_config = _build_adapter_config(args)
+
+        run_config = MemBenchConfig(
+            data_dir=args.membench_dir,
+            max_per_task=args.max_questions,
+            search_k=args.search_k,
+            verbose=args.verbose,
+        )
+
+        t0 = time.perf_counter()
+        metrics, detailed = run_membench_benchmark(
+            adapter, adapter_config, run_config
+        )
+        elapsed = time.perf_counter() - t0
+
+        print(f"\n{system_name} completed in {elapsed:.1f}s")
+
+        all_metrics.append(metrics)
+        all_detailed[system_name] = detailed
+        adapter.teardown()
+
+    _print_retrieval_table(all_metrics)
+    _save_results(all_metrics, all_detailed, args, benchmark_name="membench")
 
 
 if __name__ == "__main__":

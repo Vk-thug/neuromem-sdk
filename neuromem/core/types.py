@@ -3,7 +3,7 @@ Core type definitions for the NeuroMem SDK.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from enum import Enum
 
@@ -15,6 +15,7 @@ class MemoryType(str, Enum):
     SEMANTIC = "semantic"
     PROCEDURAL = "procedural"
     AFFECTIVE = "affective"
+    WORKING = "working"  # Transient PFC working memory (never persisted to backend)
 
 
 @dataclass
@@ -144,9 +145,12 @@ class MemoryLink:
     strength: float  # 0.0-1.0
     created_at: datetime
     metadata: dict = field(default_factory=dict)
+    # Temporal validity (v0.4.0) — when this relationship is/was active
+    valid_from: Optional[datetime] = None
+    valid_to: Optional[datetime] = None  # None = still active
 
     def to_dict(self) -> dict:
-        return {
+        result = {
             "source_id": self.source_id,
             "target_id": self.target_id,
             "link_type": self.link_type,
@@ -154,6 +158,21 @@ class MemoryLink:
             "created_at": self.created_at.isoformat(),
             "metadata": self.metadata,
         }
+        if self.valid_from is not None:
+            result["valid_from"] = self.valid_from.isoformat()
+        if self.valid_to is not None:
+            result["valid_to"] = self.valid_to.isoformat()
+        return result
+
+    def is_active(self, as_of: Optional[datetime] = None) -> bool:
+        """Check if this link is active at the given time."""
+        if as_of is None:
+            as_of = datetime.now(timezone.utc)
+        if self.valid_from and as_of < self.valid_from:
+            return False
+        if self.valid_to and as_of > self.valid_to:
+            return False
+        return True
 
 
 @dataclass

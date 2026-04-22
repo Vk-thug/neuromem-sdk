@@ -9,6 +9,7 @@ and entity-based retrieval (HippoRAG-style).
 
 import re
 from collections import defaultdict, deque
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 from neuromem.core.types import MemoryLink
 from neuromem.utils.logging import get_logger
@@ -391,6 +392,73 @@ class MemoryGraph:
                 all_memories.update(related)
 
         return list(all_memories)
+
+    # ----------------------------------------------------------------
+    # TEMPORAL KNOWLEDGE GRAPH (v0.4.0)
+    # ----------------------------------------------------------------
+
+    def invalidate(
+        self,
+        source_id: str,
+        target_id: str,
+        link_type: str,
+        ended_at: Optional[datetime] = None,
+    ) -> bool:
+        """
+        Mark a link as no longer valid by setting its valid_to timestamp.
+
+        Used when a fact changes (e.g., "lives in NYC" superseded by "moved to LA").
+        The old link is preserved for timeline queries but excluded from active queries.
+
+        Returns True if a matching link was found and invalidated.
+        """
+        ended = ended_at or datetime.now(timezone.utc)
+        for link in self._forward.get(source_id, []):
+            if link.target_id == target_id and link.link_type == link_type:
+                link.valid_to = ended
+                return True
+        return False
+
+    def query_as_of(self, memory_id: str, as_of: Optional[datetime] = None) -> List[MemoryLink]:
+        """
+        Get all active links for a memory at a given point in time.
+
+        Links with valid_to set before as_of are excluded.
+        Links with valid_from set after as_of are excluded.
+        """
+        if as_of is None:
+            as_of = datetime.now(timezone.utc)
+
+        result: List[MemoryLink] = []
+        for link in self._forward.get(memory_id, []):
+            if link.is_active(as_of):
+                result.append(link)
+        for link in self._reverse.get(memory_id, []):
+            if link.is_active(as_of):
+                result.append(link)
+        return result
+
+    def timeline(self, entity: Optional[str] = None) -> List[MemoryLink]:
+        """
+        Get all links in chronological order, optionally filtered by entity.
+
+        Returns a timeline of facts/relationships showing how knowledge
+        evolved over time. Useful for answering "what changed" queries.
+        """
+        all_links: List[MemoryLink] = []
+        for links in self._forward.values():
+            all_links.extend(links)
+
+        if entity:
+            entity_mems = self.find_memories_by_entity(entity)
+            all_links = [
+                link
+                for link in all_links
+                if link.source_id in entity_mems or link.target_id in entity_mems
+            ]
+
+        all_links.sort(key=lambda link: link.created_at)
+        return all_links
 
     def export(self) -> Dict:
         """

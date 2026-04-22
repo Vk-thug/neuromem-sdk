@@ -6,7 +6,7 @@ to improve maintainability and make tuning easier.
 """
 
 # Version
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 # Memory Configuration Defaults
 DEFAULT_EPISODIC_CONFIDENCE = 0.9  # Direct observations have high confidence
@@ -53,6 +53,26 @@ DEFAULT_MIN_CONFIDENCE_THRESHOLD = 0.3
 
 # Keyword Boost (for proper nouns and named entities)
 DEFAULT_KEYWORD_BOOST = 0.2  # Boost for memories containing exact query keywords
+
+# Verbatim Storage (v0.4.0)
+# Stores raw conversation text alongside cognitive pipeline for high-recall retrieval.
+# MemPalace proved that "store everything raw, search well" beats "extract and summarize"
+# on retrieval benchmarks. These defaults match MemPalace's proven parameters.
+DEFAULT_VERBATIM_ENABLED = True
+DEFAULT_VERBATIM_CHUNK_SIZE = 800  # Characters per chunk
+DEFAULT_VERBATIM_CHUNK_OVERLAP = 100  # Overlap between chunks for context continuity
+DEFAULT_VERBATIM_WEIGHT = 0.5  # Weight for verbatim results in RRF merge (vs cognitive 0.5)
+
+# Hybrid Retrieval Boosts (v0.4.0)
+# Post-retrieval re-ranking signals inspired by MemPalace's hybrid v4 scoring.
+# Each signal reduces the effective distance between query and result.
+# Tuned higher than MemPalace's LongMemEval weight (0.30) because our
+# local embedding model (nomic-embed-text) produces less discriminative
+# base scores, so we need stronger post-ranking signals to break ties.
+HYBRID_KEYWORD_OVERLAP_WEIGHT = 0.50  # score boost for perfect keyword overlap
+HYBRID_QUOTED_PHRASE_BOOST = 0.60  # exact quoted phrase match
+HYBRID_PERSON_NAME_BOOST = 0.40  # person name match
+HYBRID_TEMPORAL_BOOST = 0.40  # temporal proximity max boost
 
 # Diversity/Inhibition
 DEFAULT_DIVERSITY_THRESHOLD = (
@@ -219,6 +239,108 @@ RETRIEVAL_STOP_WORDS = frozenset(
         "this",
     }
 )
+
+# =============================================================================
+# Brain System Defaults (v0.3.0)
+# =============================================================================
+
+# Hippocampus — Pattern Separation (Dentate Gyrus)
+DEFAULT_PATTERN_SEPARATION_EXPANSION = 4  # DG expansion ratio (input_dim * 4)
+DEFAULT_SPARSITY = 0.05  # Fraction of active units after k-WTA (2-5% biological)
+DEFAULT_COMPLETION_ITERATIONS = 3  # CA3 Hopfield attractor iterations
+
+# Hippocampus — Sharp-Wave Ripples
+DEFAULT_RIPPLE_INTERVAL_MINUTES = 20  # SWR replay cycle frequency
+DEFAULT_RIPPLE_BATCH_SIZE = 10  # Memories replayed per ripple cycle
+DEFAULT_MATURATION_MINUTES = 30  # Hemodynamic delay before full retrievability
+
+# Prefrontal Cortex — Working Memory
+DEFAULT_WORKING_MEMORY_CAPACITY = 4  # Cowan's number (not Miller's 7)
+
+# Amygdala — Emotional Tagging
+DEFAULT_FLASHBULB_AROUSAL_THRESHOLD = 0.8  # Arousal above this → flashbulb encoding
+DEFAULT_MATURATION_PENALTY = 0.3  # CA1Gate score reduction for unmatured memories
+
+# Basal Ganglia — TD Learning
+DEFAULT_TD_ALPHA = 0.1  # TD(0) learning rate
+DEFAULT_TD_GAMMA = 0.9  # Discount factor
+DEFAULT_HABIT_FORMATION_THRESHOLD = 5  # Retrievals before procedural promotion
+
+# Neocortex — Schema Integration
+DEFAULT_SCHEMA_CONGRUENCE_THRESHOLD = 0.75  # Cosine similarity for schema match
+DEFAULT_INTERLEAVE_RATIO = 0.3  # Fraction of old semantic memories in replay
+
+# =============================================================================
+# Multimodal Defaults (v0.3.0)
+# =============================================================================
+
+DEFAULT_FUSION_DIM = 1536  # Unified embedding dimension after fusion
+DEFAULT_MODALITY_DROPOUT = 0.3  # Training-time modality zeroing probability
+DEFAULT_TEMPORAL_HZ = 2  # Temporal alignment frequency (TribeV2 uses 2Hz)
+DEFAULT_BOTTLENECK_DIM = 256  # Low-rank bottleneck before per-user heads
+DEFAULT_HEAD_STORE_MAX_USERS = 1000  # LRU eviction ceiling for per-user heads
+DEFAULT_VIDEO_SAMPLE_HZ = 2  # Video frame sampling rate
+
+# =============================================================================
+# Emotional Arousal Lexicon
+# =============================================================================
+
+HIGH_AROUSAL_WORDS = frozenset(
+    {
+        "emergency",
+        "urgent",
+        "critical",
+        "danger",
+        "crash",
+        "fire",
+        "attack",
+        "dead",
+        "death",
+        "kill",
+        "accident",
+        "disaster",
+        "explosion",
+        "panic",
+        "terrified",
+        "horrified",
+        "shocked",
+        "amazing",
+        "incredible",
+        "unbelievable",
+        "breakthrough",
+        "won",
+        "lost",
+        "fired",
+        "promoted",
+        "married",
+        "divorced",
+        "pregnant",
+        "born",
+        "died",
+        "arrested",
+        "bankrupt",
+        "hacked",
+        "breached",
+    }
+)
+
+LOW_AROUSAL_WORDS = frozenset(
+    {
+        "maybe",
+        "perhaps",
+        "generally",
+        "sometimes",
+        "occasionally",
+        "somewhat",
+        "slightly",
+        "rather",
+        "quite",
+        "fairly",
+        "moderately",
+    }
+)
+
+# =============================================================================
 
 # Memory Links
 DEFAULT_LINK_SIMILARITY_THRESHOLD = 0.7

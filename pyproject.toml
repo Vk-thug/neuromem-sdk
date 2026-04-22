@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuromem-sdk"
-version = "0.2.1"
-description = "Brain-Inspired Memory SDK for LangChain & LangGraph Agents"
+version = "0.3.0"
+description = "Brain-Faithful Multimodal Memory SDK for AI Agents"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
@@ -73,6 +73,22 @@ haystack = [
 ]
 semantic-kernel = [
     "semantic-kernel>=1.30.0",
+]
+# v0.3.0 — Brain-faithful multimodal support
+brain = [
+    "numpy>=1.24.0",
+]
+multimodal = [
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "openai-whisper>=20231117",
+    "soundfile>=0.12.0",
+    "Pillow>=10.0.0",
+]
+livekit = [
+    "livekit-agents>=1.0.0",
+    "livekit-plugins-silero>=1.0.0",
+    "livekit-plugins-deepgram>=1.0.0",
 ]
 # NOTE: crewai and dspy have conflicting json-repair pins and cannot
 # be installed together.  Use the individual extras or one of the

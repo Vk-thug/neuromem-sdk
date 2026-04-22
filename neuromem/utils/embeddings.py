@@ -87,6 +87,59 @@ def _is_ollama_model(model: str) -> bool:
     return model.startswith("ollama/") or clean in ollama_models
 
 
+# Sentence-transformers model cache (loaded on first use, reused thereafter)
+_st_models: Dict[str, object] = {}
+_st_lock = threading.Lock()
+
+
+def _get_st_model(model: str):
+    """Lazily load and cache a SentenceTransformer model."""
+    with _st_lock:
+        if model not in _st_models:
+            from sentence_transformers import SentenceTransformer
+
+            # Strip 'sentence-transformers/' prefix if present
+            model_name = model.replace("sentence-transformers/", "")
+            _st_models[model] = SentenceTransformer(model_name)
+        return _st_models[model]
+
+
+def _call_st_embed(text: str, model: str) -> List[float]:
+    """Generate embedding using a local sentence-transformers model."""
+    st_model = _get_st_model(model)
+    embedding = st_model.encode([text], convert_to_numpy=True)[0]
+    return embedding.tolist()
+
+
+def _call_st_embed_batch(texts: List[str], model: str) -> List[List[float]]:
+    """Generate embeddings for a batch of texts using sentence-transformers."""
+    st_model = _get_st_model(model)
+    embeddings = st_model.encode(texts, convert_to_numpy=True, batch_size=32)
+    return [e.tolist() for e in embeddings]
+
+
+def _is_st_model(model: str) -> bool:
+    """Check if the model name indicates a sentence-transformers model."""
+    st_models = {
+        "all-MiniLM-L6-v2",
+        "all-MiniLM-L12-v2",
+        "all-mpnet-base-v2",
+        "multi-qa-MiniLM-L6-cos-v1",
+        "multi-qa-mpnet-base-dot-v1",
+        "paraphrase-MiniLM-L6-v2",
+        "paraphrase-mpnet-base-v2",
+        "BAAI/bge-small-en-v1.5",
+        "BAAI/bge-base-en-v1.5",
+        "BAAI/bge-large-en-v1.5",
+    }
+    clean = model.replace("sentence-transformers/", "")
+    return (
+        model.startswith("sentence-transformers/")
+        or clean in st_models
+        or clean.startswith("BAAI/")
+    )
+
+
 def _generate_mock_embedding(text: str, dimensions: int = 1536) -> List[float]:
     """
     Generate deterministic mock embedding for testing.
@@ -202,6 +255,26 @@ def get_embedding(
             logger.debug("Embedding cache hit", extra={"cache_key": cache_key[:16]})
             return cached
 
+    # Route to sentence-transformers (local, fast, zero API cost)
+    if _is_st_model(model):
+        try:
+            embedding = _call_st_embed(text, model)
+            if use_cache and _cache_enabled:
+                _cache_put(cache_key, embedding)
+            logger.debug(
+                "Sentence-transformers embedding generated",
+                extra={"model": model, "text_length": len(text), "embedding_dim": len(embedding)},
+            )
+            return embedding
+        except Exception as e:
+            if fallback_to_mock:
+                logger.error(
+                    "sentence-transformers failed, falling back to mock",
+                    extra={"error": str(e)[:200], "model": model},
+                )
+                return _generate_mock_embedding(text, dimensions=384)
+            raise
+
     # Route to Ollama if model is an Ollama embedding model
     if _is_ollama_model(model):
         try:
@@ -305,6 +378,22 @@ def batch_get_embeddings(
     """
     if not texts or not isinstance(texts, list):
         raise ValueError(f"texts must be a non-empty list, got: {type(texts)}")
+
+    # Route to sentence-transformers (local, batched, fastest path)
+    if _is_st_model(model):
+        try:
+            embeddings = _call_st_embed_batch(texts, model)
+            if use_cache and _cache_enabled:
+                for text, emb in zip(texts, embeddings):
+                    _cache_put(_get_cache_key(text, model), emb)
+            return embeddings
+        except Exception as e:
+            logger.warning(f"sentence-transformers batch failed, falling back: {str(e)[:100]}")
+            # Fall through to per-item loop
+
+    # Route Ollama models to per-item (Ollama doesn't have true batch API)
+    if _is_ollama_model(model):
+        return [get_embedding(t, model, api_key, use_cache, fallback_to_mock) for t in texts]
 
     # For small batches, try batch API
     if len(texts) <= 2048:  # OpenAI batch limit

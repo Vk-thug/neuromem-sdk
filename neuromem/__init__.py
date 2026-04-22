@@ -123,6 +123,21 @@ class NeuroMem:
         )
         decay_engine = DecayEngine(enabled=config.memory().get("decay_enabled", True))
 
+        # Initialize verbatim store (v0.4.0) — raw text chunks for high-recall retrieval
+        verbatim = None
+        verbatim_cfg = config.verbatim()
+        if verbatim_cfg.get("enabled", True):
+            from neuromem.core.verbatim import VerbatimStore
+
+            embedding_model = config.model().get("embedding", "text-embedding-3-large")
+            verbatim = VerbatimStore(
+                backend=backend,
+                user_id=user_id,
+                embedding_model=embedding_model,
+                chunk_size=verbatim_cfg.get("chunk_size", 800),
+                chunk_overlap=verbatim_cfg.get("chunk_overlap", 100),
+            )
+
         # Initialize controller
         controller = MemoryController(
             episodic=episodic,
@@ -134,6 +149,7 @@ class NeuroMem:
             decay_engine=decay_engine,
             embedding_model=config.model().get("embedding", "text-embedding-3-large"),
             config=config,
+            verbatim=verbatim,
         )
 
         return cls(user_id=user_id, controller=controller, config=config)
@@ -328,6 +344,86 @@ class NeuroMem:
         """
         return cls.from_config(config_path, user_id)
 
+    # ----------------------------------------------------------------
+    # BRAIN SYSTEM (v0.3.0)
+    # ----------------------------------------------------------------
+
+    def reinforce(self, memory_id: str, reward: float = 1.0, task_type: str = "chat") -> None:
+        """Provide reward feedback for a retrieved memory (TD learning).
+
+        Positive reward (+1.0) increases future retrieval priority for
+        similar memories. Negative reward (-1.0) decreases it.
+        Requires ``brain.enabled: true`` in config.
+
+        Args:
+            memory_id: ID of the memory to reinforce
+            reward: Reward signal (-1.0 to 1.0, default: 1.0 = helpful)
+            task_type: Task context (e.g., "chat", "code", "planning")
+        """
+        self.controller.reinforce(memory_id, reward, task_type)
+
+    def get_working_memory(self) -> list:
+        """Get memories currently in the prefrontal working memory buffer.
+
+        Returns up to 4 items (Cowan's number) that are in the current
+        attention window. Requires ``brain.enabled: true`` in config.
+
+        Returns:
+            List of MemoryItem objects in working memory
+        """
+        return self.controller.get_working_memory()
+
+    def observe_multimodal(
+        self,
+        text: str = None,
+        audio_bytes: bytes = None,
+        video_frames: list = None,
+        assistant_output: str = "",
+        source: str = "text",
+    ) -> None:
+        """Observe a multimodal interaction and store it in memory.
+
+        Requires ``multimodal.enabled: true`` in config plus optional deps.
+        Falls back to text-only observe if multimodal is not available.
+
+        Args:
+            text: Text content (always available)
+            audio_bytes: Raw audio bytes (PCM/WAV)
+            video_frames: List of video frames as numpy arrays
+            assistant_output: What the assistant responded
+            source: Origin of input ("text", "livekit", "file")
+        """
+        # For now, fall back to text-only if text is available
+        if text:
+            self.observe(text, assistant_output)
+        else:
+            self.observe(
+                f"[{source} input: audio={audio_bytes is not None}, video={video_frames is not None}]",
+                assistant_output,
+            )
+
+    @classmethod
+    def for_livekit(cls, user_id: str, config_path: str = "neuromem.yaml"):
+        """Quick initialization for LiveKit real-time integration.
+
+        Args:
+            user_id: User ID
+            config_path: Path to neuromem.yaml
+
+        Returns:
+            NeuroMem instance for LiveKit
+
+        Usage:
+            from neuromem import NeuroMem
+            memory = NeuroMem.for_livekit(user_id="user_123")
+            bridge = await memory.connect_livekit(session)
+        """
+        return cls.from_config(config_path, user_id)
+
+    # ----------------------------------------------------------------
+    # RETRIEVAL
+    # ----------------------------------------------------------------
+
     def retrieve(self, query: str, task_type: str = "chat", k: int = 8, parallel: bool = True):
         """
         Retrieve relevant memories for a given query.
@@ -355,6 +451,36 @@ class NeuroMem:
             parallel=parallel,
         )
 
+    def retrieve_verbatim_only(
+        self,
+        query: str,
+        k: int = 8,
+        bm25_blend: float = 0.5,
+        ce_blend: float = 0.9,
+        ce_top_k: int = 30,
+    ):
+        """
+        Deterministic 2-stage retrieval against verbatim chunks only.
+
+        Bypasses the cognitive pipeline (semantic/procedural/episodic, conflict
+        detection, brain re-ranking) and returns BM25 + cross-encoder reranked
+        results from the verbatim store. Designed for exact-fact retrieval
+        benchmarks (MemBench) where cognitive-layer noise hurts precision.
+
+        Requires verbatim.enabled=true in the YAML config.
+        """
+        embedding = get_embedding(
+            query, self.config.model().get("embedding", "text-embedding-3-large")
+        )
+        return self.controller.retrieve_verbatim_only(
+            embedding=embedding,
+            query_text=query,
+            k=k,
+            bm25_blend=bm25_blend,
+            ce_blend=ce_blend,
+            ce_top_k=ce_top_k,
+        )
+
     def retrieve_with_context(self, query: str, task_type: str = "chat", k: int = 8):
         """
         Retrieve memories with automatic context expansion via graph.
@@ -377,7 +503,13 @@ class NeuroMem:
             embedding, task_type, k, expand_context=True, query_text=query
         )
 
-    def observe(self, user_input: str, assistant_output: str, template: str = None):
+    def observe(
+        self,
+        user_input: str,
+        assistant_output: str,
+        template: str = None,
+        metadata: dict = None,
+    ):
         """
         Observe a user-assistant interaction and store it in memory.
 
@@ -386,6 +518,8 @@ class NeuroMem:
             assistant_output: What the assistant responded
             template: Optional template name (decision, preference, fact, goal, feedback).
                       If None, auto-detects from content.
+            metadata: Optional extra metadata to store with the memory
+                      (e.g., session_id, corpus_id, timestamp).
         """
         # Apply template if specified or auto-detected
         if template or True:  # Always try template detection
@@ -401,7 +535,7 @@ class NeuroMem:
                 # Template tags/metadata will be handled in the next consolidation
                 pass  # Template detection runs but doesn't block core observe
 
-        self.controller.observe(user_input, assistant_output, self.user_id)
+        self.controller.observe(user_input, assistant_output, self.user_id, extra_metadata=metadata)
         self._turn_count += 1
 
         # Trigger consolidation if needed
@@ -556,6 +690,46 @@ class NeuroMem:
         """Export the memory relationship graph as {nodes, edges}."""
         return self.controller.graph.export()
 
+    def get_context(
+        self,
+        max_level: int = 1,
+        topic: str = "",
+        query: str = "",
+    ) -> dict:
+        """
+        Load layered context for efficient memory retrieval.
+
+        Levels:
+            0 — Identity (~100 tokens, always loaded)
+            1 — Essential facts (~500-800 tokens, top-15 by salience)
+            2 — On-demand topic-filtered retrieval
+            3 — Deep semantic search (full pipeline)
+
+        Args:
+            max_level: Maximum context level to load (0-3)
+            topic: Topic filter for L2 (e.g., "career", "health")
+            query: Query string for L3 deep search
+
+        Returns:
+            Dict with 'text', 'token_estimate', and 'layers' list
+        """
+        from neuromem.core.context_layers import ContextManager
+
+        ctx_mgr = ContextManager(self.controller, self.user_id)
+        context = ctx_mgr.load(max_level=max_level, topic=topic, query=query)
+        return {
+            "text": context.full_text,
+            "token_estimate": context.total_tokens,
+            "layers": [
+                {
+                    "level": layer.level,
+                    "name": layer.name,
+                    "token_estimate": layer.token_estimate,
+                }
+                for layer in context.layers
+            ],
+        }
+
     def close(self):
         """Close the memory system and release resources."""
         if hasattr(self.controller, "episodic") and hasattr(self.controller.episodic, "backend"):
@@ -581,4 +755,4 @@ __all__ = [
     "MemoryBackend",
 ]
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"
