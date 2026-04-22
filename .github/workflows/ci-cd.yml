@@ -50,6 +50,9 @@ jobs:
       - name: Lint with ruff
         run: ruff check neuromem/
 
+      - name: Check PEP 604 __future__ annotations (py3.9 guard)
+        run: python scripts/check_future_annotations.py
+
       - name: Format check with black
         if: matrix.python-version == '3.12'
         run: black neuromem/ --line-length 100 --check

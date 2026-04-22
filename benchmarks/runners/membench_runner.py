@@ -416,6 +416,11 @@ def run_membench_benchmark(
         # truly wanted to clarify is," or similar markers.
         clean_question = _extract_real_question(entry.qa.question)
 
+        # Let adapters (NeuroMem) pick up per-category blend overrides, if any.
+        # No-op on adapters that don't expose `set_active_category`.
+        if hasattr(adapter, "set_active_category"):
+            adapter.set_active_category(entry.task_name)
+
         # Search using the cleaned question
         t0 = time.perf_counter()
         results = adapter.search(

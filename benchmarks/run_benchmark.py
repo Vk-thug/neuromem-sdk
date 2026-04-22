@@ -102,6 +102,21 @@ def _get_adapter(name: str) -> MemorySystemAdapter:
         )
 
 
+def _parse_category_blends(raw: Optional[str]) -> dict:
+    """Parse the --category-blends JSON string. Returns {} when unset or invalid."""
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        print(f"Warning: --category-blends is not valid JSON ({e}); ignoring.")
+        return {}
+    if not isinstance(parsed, dict):
+        print("Warning: --category-blends must be a JSON object; ignoring.")
+        return {}
+    return parsed
+
+
 def _build_adapter_config(args: argparse.Namespace) -> dict:
     """Build adapter configuration from CLI args."""
     import os
@@ -143,6 +158,9 @@ def _build_adapter_config(args: argparse.Namespace) -> dict:
         "verbatim_only": getattr(args, "verbatim_only", False),
         "bm25_blend": getattr(args, "bm25_blend", 0.5),
         "ce_blend": getattr(args, "ce_blend", 0.9),
+        "category_blend_overrides": _parse_category_blends(
+            getattr(args, "category_blends", None)
+        ),
     }
 
 
@@ -458,6 +476,16 @@ def main() -> None:
         default=0.9,
         help="Cross-encoder weight in verbatim-only mode (0.0-1.0, default: 0.9)",
     )
+    parser.add_argument(
+        "--category-blends",
+        type=str,
+        default=None,
+        help=(
+            "JSON map of per-category blend overrides for verbatim-only mode. "
+            'Example: \'{"highlevel_rec":{"bm25":0.3,"ce":0.95},"simple":{"bm25":0.6}}\'. '
+            "Categories without overrides use --bm25-blend / --ce-blend defaults."
+        ),
+    )
 
     # Embeddings
     parser.add_argument(
@@ -511,7 +539,22 @@ def main() -> None:
         "--max-questions",
         type=int,
         default=None,
-        help="Max questions for retrieval benchmarks (LongMemEval, ConvoMem, MemBench)",
+        help=(
+            "Total-question cap. For LongMemEval this is the natural meaning. "
+            "For ConvoMem and MemBench, this value gets treated as per-slice "
+            "(per-category / per-task) only if --max-per-slice is not set — "
+            "prefer --max-per-slice explicitly to avoid ambiguity."
+        ),
+    )
+    parser.add_argument(
+        "--max-per-slice",
+        type=int,
+        default=None,
+        help=(
+            "Per-slice cap: max items per ConvoMem category or per MemBench task. "
+            "Preferred over --max-questions for slice-based benchmarks. "
+            "Ignored by LongMemEval (which has no slices)."
+        ),
     )
     parser.add_argument(
         "--convomem-categories",
@@ -717,8 +760,11 @@ def _run_convomem(args: argparse.Namespace) -> None:
 
         cats = tuple(args.convomem_categories) if args.convomem_categories else None
 
+        # Prefer --max-per-slice; fall back to --max-questions for backward
+        # compatibility (historical behavior treated it as per-category).
+        per_slice = args.max_per_slice if args.max_per_slice is not None else args.max_questions
         run_config = ConvoMemConfig(
-            max_per_category=args.max_questions,
+            max_per_category=per_slice,
             categories=cats,
             search_k=args.search_k,
             verbose=args.verbose,
@@ -758,9 +804,12 @@ def _run_membench(args: argparse.Namespace) -> None:
         adapter = _get_adapter(system_name)
         adapter_config = _build_adapter_config(args)
 
+        # Prefer --max-per-slice; fall back to --max-questions for backward
+        # compatibility (historical behavior treated it as per-task).
+        per_slice = args.max_per_slice if args.max_per_slice is not None else args.max_questions
         run_config = MemBenchConfig(
             data_dir=args.membench_dir,
-            max_per_task=args.max_questions,
+            max_per_task=per_slice,
             search_k=args.search_k,
             verbose=args.verbose,
         )

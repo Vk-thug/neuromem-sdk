@@ -134,6 +134,10 @@ def run_convomem_benchmark(
         # Ingest all messages
         msg_count = _ingest_conversations(adapter, entry, user_id, metrics)
 
+        # Per-category blend override hook (no-op for adapters without this method).
+        if hasattr(adapter, "set_active_category"):
+            adapter.set_active_category(entry.category)
+
         # Search
         t0 = time.perf_counter()
         results = adapter.search(

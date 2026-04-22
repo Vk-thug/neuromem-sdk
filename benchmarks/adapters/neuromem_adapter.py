@@ -31,11 +31,24 @@ class NeuroMemAdapter:
         self._verbatim_only: bool = False
         self._bm25_blend: float = 0.5
         self._ce_blend: float = 0.9
+        # Optional per-category blend overrides: {category_name: {"bm25": float, "ce": float}}
+        # Each slice-based runner can set its current category so the adapter
+        # picks the right blend for that category's query profile.
+        self._category_blend_overrides: dict[str, dict[str, float]] = {}
+        self._active_category: str | None = None
 
     @property
     def name(self) -> str:
         mode = "verbatim-only" if self._verbatim_only else "cognitive"
         return f"NeuroMem (v0.3.0, {self._backend}, {mode})"
+
+    def set_active_category(self, category: str | None) -> None:
+        """
+        Mark the current query's category so the next search() picks up any
+        per-category blend override configured via `category_blend_overrides`.
+        Runners call this before each search; no-op if no overrides configured.
+        """
+        self._active_category = category
 
     def setup(self, config: dict) -> None:
         """
@@ -61,6 +74,7 @@ class NeuroMemAdapter:
         self._verbatim_only = config.get("verbatim_only", False)
         self._bm25_blend = config.get("bm25_blend", 0.5)
         self._ce_blend = config.get("ce_blend", 0.9)
+        self._category_blend_overrides = config.get("category_blend_overrides", {}) or {}
 
         embedding_model = config.get("embedding_model", "nomic-embed-text")
         embedding_provider = config.get("embedding_provider", "ollama")
@@ -162,10 +176,13 @@ class NeuroMemAdapter:
 
         # Pass all benchmark metadata through to the stored MemoryItem
         # so retrieval can resolve corpus_id, timestamp, etc.
+        # max_content_length=1_000_000 so LongMemEval's long-haystack docs
+        # (up to ~80 KB per session) don't trip the production 50 KB guard.
         self._neuromem.observe(
             user_input=formatted,
             assistant_output="Memory stored.",
             metadata=meta,
+            max_content_length=1_000_000,
         )
         return str(uuid.uuid4())  # NeuroMem doesn't return ID from observe
 
@@ -210,12 +227,17 @@ class NeuroMemAdapter:
             except Exception:
                 effective_query = query
 
+        # Resolve per-query blend: per-category override wins over global default.
+        override = self._category_blend_overrides.get(self._active_category or "", {})
+        bm25_blend = override.get("bm25", self._bm25_blend)
+        ce_blend = override.get("ce", self._ce_blend)
+
         if self._verbatim_only:
             items = self._neuromem.retrieve_verbatim_only(
                 query=effective_query,
                 k=k,
-                bm25_blend=self._bm25_blend,
-                ce_blend=self._ce_blend,
+                bm25_blend=bm25_blend,
+                ce_blend=ce_blend,
             )
         else:
             items = self._neuromem.retrieve(query=effective_query, task_type="chat", k=k)

@@ -509,6 +509,7 @@ class NeuroMem:
         assistant_output: str,
         template: str = None,
         metadata: dict = None,
+        max_content_length: int = 50000,
     ):
         """
         Observe a user-assistant interaction and store it in memory.
@@ -520,6 +521,8 @@ class NeuroMem:
                       If None, auto-detects from content.
             metadata: Optional extra metadata to store with the memory
                       (e.g., session_id, corpus_id, timestamp).
+            max_content_length: Per-field character cap. Defaults to 50 KB. Benchmark
+                      adapters ingesting long-haystack docs should raise this.
         """
         # Apply template if specified or auto-detected
         if template or True:  # Always try template detection
@@ -535,7 +538,13 @@ class NeuroMem:
                 # Template tags/metadata will be handled in the next consolidation
                 pass  # Template detection runs but doesn't block core observe
 
-        self.controller.observe(user_input, assistant_output, self.user_id, extra_metadata=metadata)
+        self.controller.observe(
+            user_input,
+            assistant_output,
+            self.user_id,
+            extra_metadata=metadata,
+            max_content_length=max_content_length,
+        )
         self._turn_count += 1
 
         # Trigger consolidation if needed
@@ -755,4 +764,4 @@ __all__ = [
     "MemoryBackend",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"

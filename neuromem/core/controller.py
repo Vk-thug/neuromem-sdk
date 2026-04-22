@@ -574,12 +574,20 @@ class MemoryController:
         assistant_output: str,
         user_id: str,
         extra_metadata: Optional[Dict[str, Any]] = None,
+        max_content_length: int = 50000,
     ):
-        """Observe and store a user-assistant interaction."""
+        """Observe and store a user-assistant interaction.
+
+        `max_content_length` defaults to 50 KB to cap production inputs; benchmark
+        adapters ingesting long-haystack docs (LongMemEval) should pass a larger
+        value to avoid ValidationError on legitimately long sessions.
+        """
         user_id = validate_user_id(user_id)
-        user_input = validate_content(user_input, max_length=50000, field_name="user_input")
+        user_input = validate_content(
+            user_input, max_length=max_content_length, field_name="user_input"
+        )
         assistant_output = validate_content(
-            assistant_output, max_length=50000, field_name="assistant_output"
+            assistant_output, max_length=max_content_length, field_name="assistant_output"
         )
 
         if self.async_enabled:

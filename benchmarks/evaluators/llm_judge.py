@@ -7,6 +7,8 @@ evaluation methodology used in LoCoMo and Mem0 benchmarks.
 Supports both Ollama (local) and OpenAI models.
 """
 
+from __future__ import annotations
+
 import json
 import re
 from typing import Optional

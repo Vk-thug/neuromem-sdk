@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-22
+
+### Added — Polish on the v0.3.0 release
+
+- **PEP 604 CI guard** (`scripts/check_future_annotations.py`) — scans `.py` files for `X | None` usage without `from __future__ import annotations` and fails CI on miss. Prevents regressions of the py3.9 import crash that required the v0.3.0 hotfix.
+- **Long-input support for benchmark ingestion** — `NeuroMem.observe()` now accepts `max_content_length` (default 50 KB, same as before); benchmark adapter bumps it to 1 MB so LongMemEval full-corpus runs no longer crash on 76 KB haystack docs.
+- **`--max-per-slice` CLI flag** — explicit per-category / per-task cap for slice-based benchmarks (ConvoMem, MemBench). Falls back to `--max-questions` for backward compatibility. Saves future you from guessing whether `--max-questions 30` means 30 total or 30 per category (it was per-slice for those runners).
+- **Per-category blend override hook** — `NeuroMemAdapter.set_active_category()` + `category_blend_overrides` config dict + `--category-blends` JSON CLI flag. Runners mark the active category before each search so per-category BM25 / CE blends can be tuned independently. Infrastructure only; defaults unchanged, so v0.3.0 retrieval scores are byte-identical.
+
+### Fixed
+
+- `from __future__ import annotations` added to 22 files (adapters, runners, loaders, evaluators, core modules, tests) that were using PEP 604 unions without the import, unblocking Python 3.9 test collection in CI.
+- `benchmarks/evaluators/llm_judge.py` — caught by the new CI guard, not flagged during v0.3.0 because its `X | None` lived on a line the earlier sweep missed.
+
+### Internal
+
+- Test count: 248 → **285** (PEP 604 fix unblocked `test_benchmark_runners.py` collection on py3.9).
+
 ## [0.3.0] - 2026-04-22
 
 ### Added — Digital Brain Architecture
