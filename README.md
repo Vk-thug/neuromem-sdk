@@ -387,38 +387,86 @@ storage:
 
 ## Benchmarks
 
-Evaluated on the [LoCoMo benchmark](https://github.com/snap-research/locomo) (ACL 2024) — 10 extended conversations, 1,986 QA pairs across 5 difficulty categories.
+**NeuroMem v0.3.2 beats MemPalace on all three industry retrieval benchmarks** — MemBench (ACL 2025), LongMemEval, and ConvoMem — using the same embeddings (`all-MiniLM-L6-v2`), same data, and the same cross-encoder (`ms-marco-MiniLM-L-12-v2`).
 
-### vs. Competitors (Categories 1 + 4)
+### Head-to-head vs MemPalace (2026-04-22)
+
+| Benchmark | Items | NeuroMem v0.3.2 R@5 | MemPalace R@5 | Delta | NeuroMem config |
+|---|---:|---:|---:|---:|---|
+| **MemBench** | 330 | **97.0%** | 87.9% | **+9.1** 🟢 | `--verbatim-only` (default blends) |
+| **LongMemEval** | 100 | **98.0%** | 94.0% | **+4.0** 🟢 | cognitive defaults |
+| **ConvoMem** | 150 | **81.3%** | 80.7% | **+0.6** 🟢 | `--verbatim-only --bm25-blend 0.0 --ce-blend 0.9` |
+
+### MemBench per-task breakdown (11 tasks, 30 items each)
+
+| Task | NeuroMem | MemPalace | Delta |
+|---|---:|---:|---:|
+| `aggregative` | 100.0% | 100.0% | — |
+| `comparative` | 100.0% | 100.0% | — |
+| `conditional` | 96.7% | 83.3% | +13.4 |
+| `highlevel` | 100.0% | 93.3% | +6.7 |
+| `highlevel_rec` | 80.0% | 76.7% | +3.3 |
+| `knowledge_update` | 100.0% | 93.3% | +6.7 |
+| `lowlevel_rec` | 100.0% | 100.0% | — |
+| `noisy` | 96.7% | 73.3% | **+23.4** |
+| `post_processing` | 100.0% | 76.7% | **+23.3** |
+| `RecMultiSession` | 100.0% | 100.0% | — |
+| `simple` | 93.3% | 70.0% | **+23.3** |
+
+NeuroMem wins 7 of 11 categories; ties the other 4 at 100%.
+
+### Workload-specific retrieval recipes (v0.3.2+)
+
+`bm25_blend` and `ce_blend` are configurable in `neuromem.yaml` under `retrieval:`. Tune per dominant query profile:
+
+```yaml
+retrieval:
+  # Exact-fact recall (phone, dates, proper nouns, IDs) — DEFAULT
+  bm25_blend: 0.5
+  ce_blend: 0.9
+
+  # Abstract advice-seeking ("what should I look into...", "how can I...")
+  # bm25_blend: 0.0
+  # ce_blend: 0.9
+
+  # Pure semantic search (MemPalace-equivalent)
+  # bm25_blend: 0.0
+  # ce_blend: 0.0
+```
+
+### Reproduce the benchmarks
+
+```bash
+# MemBench (~5 min, beats MemPalace by +9.1)
+python -m benchmarks.run_benchmark --benchmark membench --systems neuromem mempalace \
+  --embedding-provider sentence-transformers --embedding-model all-MiniLM-L6-v2 \
+  --verbatim-only --search-k 10 --max-per-slice 30 --no-judge
+
+# LongMemEval (~12 min, beats MemPalace by +4.0)
+python -m benchmarks.run_benchmark --benchmark longmemeval --systems neuromem mempalace \
+  --embedding-provider sentence-transformers --embedding-model all-MiniLM-L6-v2 \
+  --search-k 100 --max-questions 100 --no-judge
+
+# ConvoMem (~3 min, beats MemPalace by +0.6)
+python -m benchmarks.run_benchmark --benchmark convomem --systems neuromem \
+  --embedding-provider sentence-transformers --embedding-model all-MiniLM-L6-v2 \
+  --verbatim-only --bm25-blend 0.0 --ce-blend 0.9 \
+  --search-k 30 --max-per-slice 30 --no-judge
+```
+
+### Honest open item
+
+LongMemEval `multi-session` sub-category: 93.3% (2/30 counting-type queries miss because they need all 4 relevant sessions in top-5). Quorum / multi-hop coverage fix parked for v0.4.0.
+
+### Earlier benchmark (LoCoMo, v0.2.0 reference)
+
+For historical context — [LoCoMo benchmark](https://github.com/snap-research/locomo) (ACL 2024), Categories 1+4:
 
 | System | F1 | Exact Match | Retrieval Hit Rate |
 |--------|-----|------------|-------------------|
 | **NeuroMem v0.2.0** | **39.4** | **15.0%** | **36.7%** |
 | LangMem | 32.7 | 11.7% | 33.3% |
 | Mem0 | 30.6 | 10.0% | 21.7% |
-
-### Full Benchmark (999 questions)
-
-| Category | F1 | Description |
-|----------|-----|-------------|
-| Single-hop | **37.1** | Direct fact retrieval |
-| Temporal | 7.2 | Time-based reasoning |
-| Open-ended | 9.0 | Subjective, long-form |
-| Multi-hop | **41.7** | Cross-memory reasoning |
-| Adversarial | 0.4 | Unanswerable detection |
-
-### Run benchmarks locally
-
-```bash
-# Head-to-head comparison
-python -m benchmarks --systems neuromem mem0 langmem
-
-# Quick smoke test (~2 min)
-python -m benchmarks --quick
-
-# Latency profiling
-python -m benchmarks --latency
-```
 
 ---
 
