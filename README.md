@@ -623,7 +623,8 @@ Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 ## Links
 
 - [PyPI](https://pypi.org/project/neuromem-sdk/)
-- [Changelog](CHANGELOG.md)
+- [Release Notes](RELEASE_NOTES.md) — human-readable per-release notes
+- [Changelog](CHANGELOG.md) — complete machine-readable changelog
 - [GitHub Releases](https://github.com/Vk-thug/neuromem-sdk/releases)
 - [Issues](https://github.com/Vk-thug/neuromem-sdk/issues)
 
