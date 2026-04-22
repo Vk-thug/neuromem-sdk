@@ -102,6 +102,8 @@ class NeuroMemAdapter:
                     "importance_weight": 0.0,
                     "recency_weight": 0.0,
                     "recency_half_life_days": 1,
+                    "bm25_blend": self._bm25_blend,
+                    "ce_blend": self._ce_blend,
                     "llm_rerank_enabled": self._use_llm_rerank,
                     "llm_rerank_model": "qwen2.5-coder:7b",
                     "llm_rerank_provider": "ollama",

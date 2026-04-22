@@ -270,7 +270,15 @@ class MemoryController:
                 # before BM25 scoring. The wrapping tokens have high IDF
                 # (appearing in ALL cognitive memories) which dilutes useful
                 # term frequencies.
-                if len(scored) >= 2:
+                # Read per-workload blend weights from YAML retrieval config.
+                # Defaults (0.5 / 0.9) preserve MemBench-beating behaviour; set
+                # bm25_blend=0.0 for abstract advice-seeking workloads like
+                # ConvoMem where lexical matching penalises surface-vocab gaps.
+                rc = self.config.retrieval() if hasattr(self.config, "retrieval") else {}
+                _bm25_w = rc.get("bm25_blend", 0.5)
+                _ce_w = rc.get("ce_blend", 0.9)
+
+                if len(scored) >= 2 and _bm25_w > 0:
                     documents = []
                     for item, _ in scored:
                         c = getattr(item, "content", "")
@@ -282,7 +290,7 @@ class MemoryController:
                     bm25 = BM25Scorer(documents)
                     bm25_scores = bm25.normalized_score(query_text)
                     scored = [
-                        (item, 0.50 * sim + 0.50 * bm25_scores[i])
+                        (item, (1 - _bm25_w) * sim + _bm25_w * bm25_scores[i])
                         for i, (item, sim) in enumerate(scored)
                     ]
                     scored.sort(key=lambda x: x[1], reverse=True)
@@ -291,7 +299,7 @@ class MemoryController:
                 # Cross-encoders take (query, doc) pairs as joint input and
                 # produce a much more accurate relevance score than bi-encoders.
                 # Used by Bing/Google as the final re-ranker.
-                if len(scored) >= 2:
+                if len(scored) >= 2 and _ce_w > 0:
                     try:
                         from neuromem.core.cross_encoder_reranker import (
                             rerank_with_cross_encoder,
@@ -301,7 +309,7 @@ class MemoryController:
                             query=query_text,
                             items_with_scores=scored,
                             top_k=min(30, len(scored)),
-                            blend_weight=0.9,
+                            blend_weight=_ce_w,
                         )
                     except Exception:
                         logger.debug("Cross-encoder unavailable, skipping", exc_info=True)

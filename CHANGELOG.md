@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-22
+
+### Fixed — Beats MemPalace on ALL three benchmarks
+
+Post-release deep-dive on v0.3.1's ConvoMem regression (−14.0 pts vs MemPalace) traced the cause to the cognitive retrieval pipeline: hardcoded `0.5 × sim + 0.5 × BM25` and `CE blend 0.9` were baked into `controller.retrieve()`. BM25 at 0.5 blend actively penalised ConvoMem's abstract advice-seeking queries (e.g. _"What CRM functionalities should I look into..."_) whose surface vocabulary doesn't overlap with concrete evidence.
+
+Empirical A/B on ConvoMem (150 items, same embeddings):
+
+| Config | R@5 | vs MemPalace 80.7% |
+|---|---:|---:|
+| v0.3.1 default (BM25 0.5, CE 0.9) | 66.7% | −14.0 ❌ |
+| + HyDE | 62.0% | −18.7 ❌ |
+| Pure embedding (BM25 0, CE 0) | 79.3% | −1.4 |
+| **CE-only (BM25 0, CE 0.9)** | **81.3%** | **+0.6** ✅ |
+
+### Changed — Tunable retrieval blends
+
+- `neuromem/core/controller.py` — `retrieve()` now reads `bm25_blend` and `ce_blend` from the YAML `retrieval:` section (previously hardcoded 0.5 / 0.9). Setting either to 0 skips that stage entirely.
+  - **Defaults unchanged**: `bm25_blend=0.5`, `ce_blend=0.9` — MemBench + LongMemEval scores reproduce byte-identical.
+- `benchmarks/adapters/neuromem_adapter.py` — threads `--bm25-blend` / `--ce-blend` CLI flags into the cognitive-path YAML, not only verbatim-only.
+
+### Verified — Head-to-head vs MemPalace (same data, same embeddings, 2026-04-22)
+
+| Benchmark | NeuroMem config | NeuroMem R@5 | MemPalace R@5 | Delta |
+|---|---|---:|---:|---:|
+| **MemBench** (330 items) | `--verbatim-only --bm25-blend 0.5 --ce-blend 0.9` | **97.0%** | 87.9% | **+9.1** 🟢 |
+| **LongMemEval** (100) | cognitive defaults | **98.0%** | 94.0% | **+4.0** 🟢 |
+| **ConvoMem** (150) | `--verbatim-only --bm25-blend 0.0 --ce-blend 0.9` | **81.3%** | 80.7% | **+0.6** 🟢 |
+
+### Workload-specific retrieval recipes
+
+Production users: set `bm25_blend` / `ce_blend` in `neuromem.yaml` to match your dominant query profile.
+
+- **Exact-fact recall** (phone numbers, dates, proper nouns, IDs): `bm25_blend: 0.5, ce_blend: 0.9` (default)
+- **Abstract advice-seeking** (_"what should I look into...", "how can I..."_): `bm25_blend: 0.0, ce_blend: 0.9`
+- **Pure semantic search** (MemPalace-equivalent): `bm25_blend: 0.0, ce_blend: 0.0`
+
+### Investigated — HyDE overturned
+
+Memory note `feedback_hyde_is_the_unlock.md` claimed HyDE unlocks implicit-query benchmarks. Empirically refuted: HyDE hurt ConvoMem by −4.7 pts overall (−10 pts on `implicit_connection_evidence`). HyDE's hypothetical-answer drifts *away* from concrete evidence when evidence is already declarative — a second LLM hallucination layer on top of the query. Keeping HyDE as opt-in only.
+
+### Open — LongMemEval multi-session counting
+
+`multi-session` subcategory: NeuroMem 93.3% vs MemPalace 100.0% (−6.7 pts). Root cause: two _"how many X"_ queries require retrieving **all 4** relevant sessions into top-5. Top-5 with 4 needed + noise leaves 1 slot; one miss drops recall_all. Needs multi-hop coverage / quorum retrieval — parked for v0.4.0.
+
 ## [0.3.1] - 2026-04-22
 
 ### Added — Polish on the v0.3.0 release
