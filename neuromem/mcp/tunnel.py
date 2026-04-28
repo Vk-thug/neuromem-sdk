@@ -109,8 +109,7 @@ def start_cloudflared(
     binary = binary_path or _find_binary("cloudflared")
     if not binary:
         raise TunnelError(
-            "cloudflared is not installed and no binary path was provided.\n\n"
-            + _install_hint()
+            "cloudflared is not installed and no binary path was provided.\n\n" + _install_hint()
         )
 
     cmd = [binary, "tunnel", "--url", f"http://localhost:{local_port}"]

@@ -129,9 +129,7 @@ class KnowledgeBaseIngester:
     # internals
     # ------------------------------------------------------------------
 
-    def _create_document_root(
-        self, *, source_id: str, source_path: str, parser_name: str
-    ) -> str:
+    def _create_document_root(self, *, source_id: str, source_path: str, parser_name: str) -> str:
         """Persist a single SEMANTIC ``MemoryItem`` representing the
         document as a whole. Its content is the filename + a brief
         marker so retrieval-by-content still surfaces it for queries
@@ -154,9 +152,9 @@ class KnowledgeBaseIngester:
         from neuromem.utils.embeddings import get_embedding
 
         try:
-            embedding = get_embedding(content, self.memory.config.model().get(
-                "embedding", "text-embedding-3-large"
-            ))
+            embedding = get_embedding(
+                content, self.memory.config.model().get("embedding", "text-embedding-3-large")
+            )
         except Exception:
             embedding = []
 
@@ -274,10 +272,7 @@ class KnowledgeBaseIngester:
                     )
                 )
                 # Sibling 'related' link within the same section.
-                if (
-                    prev_chunk_in_section is not None
-                    and prev_section_path == chunk.section_path
-                ):
+                if prev_chunk_in_section is not None and prev_section_path == chunk.section_path:
                     self.graph.add_link(
                         MemoryLink(
                             source_id=primary_id,

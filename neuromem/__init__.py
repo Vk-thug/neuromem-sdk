@@ -26,7 +26,6 @@ from neuromem.storage.base import MemoryBackend
 from neuromem.utils.embeddings import get_embedding
 from neuromem.utils.logging import get_logger
 
-
 _logger = get_logger(__name__)
 
 

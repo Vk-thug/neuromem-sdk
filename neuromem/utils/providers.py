@@ -33,7 +33,6 @@ import functools
 from enum import Enum
 from typing import Any, Callable, Optional, TypeVar
 
-
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -173,9 +172,7 @@ def classify_upstream(exc: BaseException) -> ProviderErrorKind:
     return ProviderErrorKind.UNKNOWN
 
 
-def wrap_provider(
-    provider: str, *, kind: Optional[ProviderErrorKind] = None
-) -> Callable[[F], F]:
+def wrap_provider(provider: str, *, kind: Optional[ProviderErrorKind] = None) -> Callable[[F], F]:
     """Decorator that re-raises any exception as a tagged ``ProviderError``.
 
     Use at the boundary where NeuroMem code calls into a third-party SDK.

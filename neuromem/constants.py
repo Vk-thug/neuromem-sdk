@@ -82,7 +82,7 @@ HYBRID_TEMPORAL_BOOST = 0.40  # temporal proximity max boost
 # pipeline; pre-CE wiring would be ~6% of final ordering, see
 # feedback_ce_dominance_trap.md).
 HYBRID_EMOTIONAL_WEIGHT_FACTOR = 0.10  # score *= 1 + factor * emotional_weight
-HYBRID_FLASHBULB_BOOST = 0.20         # score *= 1 + boost when metadata.flashbulb=True
+HYBRID_FLASHBULB_BOOST = 0.20  # score *= 1 + boost when metadata.flashbulb=True
 
 # Diversity/Inhibition
 DEFAULT_DIVERSITY_THRESHOLD = (

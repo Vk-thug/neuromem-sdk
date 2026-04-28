@@ -27,10 +27,10 @@ class BeliefState(IntEnum):
     and tiebreaks (per H1-R12) sort KNOWN first.
     """
 
-    SPECULATED = 0   # LLM-extrapolated beyond stated facts
-    INFERRED = 1     # LLM-extracted from stated facts
-    BELIEVED = 2     # User-stated, not corroborated
-    KNOWN = 3        # User-stated, cross-corroborated across sessions
+    SPECULATED = 0  # LLM-extrapolated beyond stated facts
+    INFERRED = 1  # LLM-extracted from stated facts
+    BELIEVED = 2  # User-stated, not corroborated
+    KNOWN = 3  # User-stated, cross-corroborated across sessions
 
     @classmethod
     def from_legacy_inferred(cls, inferred: bool) -> "BeliefState":

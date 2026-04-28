@@ -113,9 +113,7 @@ def _serialize_memory_for_graph(item: Any) -> Dict[str, Any]:
     return {
         "label": content[:60],
         "memory_type": (
-            item.memory_type.value
-            if hasattr(item.memory_type, "value")
-            else str(item.memory_type)
+            item.memory_type.value if hasattr(item.memory_type, "value") else str(item.memory_type)
         ),
         "salience": item.salience,
         "reinforcement": item.reinforcement,
@@ -252,7 +250,9 @@ def create_app(memory: "NeuroMem") -> FastAPI:
         # Deprecate the old memory in place.
         old_meta = dict(old.metadata or {})
         old_meta["deprecated"] = True
-        old_meta["superseded_at"] = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        old_meta["superseded_at"] = (
+            __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        )
         old.metadata = old_meta
         backend.update(old)
 
@@ -365,7 +365,11 @@ def create_app(memory: "NeuroMem") -> FastAPI:
                     {"id": node_id, "label": node_id, "orphan": True, "region": "neocortex"}
                 )
                 continue
-            record = {"id": node_id, "region": _region_for(item), **_serialize_memory_for_graph(item)}
+            record = {
+                "id": node_id,
+                "region": _region_for(item),
+                **_serialize_memory_for_graph(item),
+            }
             node_records.append(record)
         return {
             "nodes": node_records,
@@ -384,7 +388,9 @@ def create_app(memory: "NeuroMem") -> FastAPI:
             item = backend.get_by_id(nid)
             if item is None:
                 continue
-            nodes.append({"id": nid, "region": _region_for(item), **_serialize_memory_for_graph(item)})
+            nodes.append(
+                {"id": nid, "region": _region_for(item), **_serialize_memory_for_graph(item)}
+            )
         edges = []
         for nid in ids:
             for link in graph.get_links(nid):
@@ -445,9 +451,7 @@ def create_app(memory: "NeuroMem") -> FastAPI:
             td_state = {}
         try:
             schema_state = (
-                brain.schema_integrator.get_state()
-                if hasattr(brain, "schema_integrator")
-                else {}
+                brain.schema_integrator.get_state() if hasattr(brain, "schema_integrator") else {}
             )
         except Exception:
             schema_state = {}
@@ -532,9 +536,7 @@ def create_app(memory: "NeuroMem") -> FastAPI:
 
     @app.get("/api/ingest/stream/{job_id}")
     async def stream_ingest_job(job_id: str) -> StreamingResponse:
-        return StreamingResponse(
-            _sse_ingest_stream(job_id), media_type="text/event-stream"
-        )
+        return StreamingResponse(_sse_ingest_stream(job_id), media_type="text/event-stream")
 
     # ----- MCP setup -----------------------------------------------------
 
@@ -636,7 +638,7 @@ async def _sse_ingest_stream(job_id: str) -> AsyncIterator[bytes]:
         # Initial snapshot — caller may connect mid-job.
         snap = default_ingest_log.get(job_id)
         if snap is None:
-            yield b"event: error\ndata: {\"error\":\"job not found\"}\n\n"
+            yield b'event: error\ndata: {"error":"job not found"}\n\n'
             return
         first = "event: progress\ndata: " + json.dumps(snap.to_dict()) + "\n\n"
         yield first.encode("utf-8")

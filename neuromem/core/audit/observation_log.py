@@ -129,9 +129,7 @@ class ObservationLog:
         with self._lock:
             return list(reversed(list(self._buf)))[:limit]
 
-    def subscribe(
-        self, callback: Callable[[ObservationEvent], None]
-    ) -> Callable[[], None]:
+    def subscribe(self, callback: Callable[[ObservationEvent], None]) -> Callable[[], None]:
         with self._lock:
             self._subscribers.append(callback)
 

@@ -67,7 +67,7 @@ class MarkdownParser:
         stack: List[Tuple[int, str]] = []  # (level, title)
 
         for m in _HEADING_RE.finditer(text):
-            body = text[last_end:m.start()]
+            body = text[last_end : m.start()]
             if body.strip():
                 section_path = tuple(t for _, t in stack)
                 results.append((section_path, body))

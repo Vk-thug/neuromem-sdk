@@ -62,9 +62,7 @@ _provider_lock = threading.Lock()
 _provider_factories: Dict[str, Callable[[str], CrossEncoderProvider]] = {}
 
 
-def register_provider(
-    name: str, factory: Callable[[str], CrossEncoderProvider]
-) -> None:
+def register_provider(name: str, factory: Callable[[str], CrossEncoderProvider]) -> None:
     """Register a custom CrossEncoderProvider factory by name.
 
     The factory takes a model name string and returns an object implementing
@@ -126,9 +124,7 @@ class _CohereProvider:
         scores = [0.0] * len(pairs)
         for query, indices in queries.items():
             documents = [pairs[i][1] for i in indices]
-            resp = self._client.rerank(
-                query=query, documents=documents, model=self._model_name
-            )
+            resp = self._client.rerank(query=query, documents=documents, model=self._model_name)
             for r in resp.results:
                 scores[indices[r.index]] = float(r.relevance_score)
         return scores

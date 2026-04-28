@@ -78,8 +78,7 @@ class FileParser(Protocol):
     name: str
     """Stable identifier for telemetry / error messages."""
 
-    def parse(self, path: str, *, source_id: str) -> Iterator[ParsedChunk]:
-        ...
+    def parse(self, path: str, *, source_id: str) -> Iterator[ParsedChunk]: ...
 
 
 __all__ = ["FileParser", "Modality", "ParsedChunk"]
