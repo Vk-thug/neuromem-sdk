@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuromem-sdk"
-version = "0.3.2"
+version = "0.4.0"
 description = "Brain-Faithful Multimodal Memory SDK for AI Agents"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -58,6 +58,14 @@ inngest = [
 mcp = [
     "mcp>=1.26.0",
     "pydantic>=2.0.0",
+]
+ui = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.27.0",
+    "python-multipart>=0.0.9",
+]
+ingest = [
+    "docling>=2.0.0",
 ]
 crewai = [
     "crewai>=1.10.0",
@@ -145,6 +153,7 @@ Issues = "https://github.com/Vk-thug/neuromem-sdk/issues"
 
 [project.scripts]
 neuromem-mcp = "neuromem.mcp.__main__:main"
+neuromem-ui = "neuromem.ui.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

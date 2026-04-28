@@ -12,6 +12,7 @@ from collections import OrderedDict
 from typing import List, Optional, Dict
 from neuromem.utils.retry import retry_with_exponential_backoff, CircuitBreaker, validate_api_key
 from neuromem.utils.logging import get_logger
+from neuromem.utils.providers import wrap_provider
 
 logger = get_logger(__name__)
 
@@ -56,6 +57,7 @@ def _get_cache_key(text: str, model: str) -> str:
     return hashlib.sha256(content.encode()).hexdigest()
 
 
+@wrap_provider("ollama")
 def _call_ollama_embed(text: str, model: str) -> List[float]:
     """
     Generate embedding using Ollama local model.
@@ -66,6 +68,9 @@ def _call_ollama_embed(text: str, model: str) -> List[float]:
 
     Returns:
         Embedding vector
+
+    Raises:
+        ProviderError (or subclass) tagged with provider="ollama".
     """
     import ollama
 
@@ -104,6 +109,7 @@ def _get_st_model(model: str):
         return _st_models[model]
 
 
+@wrap_provider("sentence-transformers")
 def _call_st_embed(text: str, model: str) -> List[float]:
     """Generate embedding using a local sentence-transformers model."""
     st_model = _get_st_model(model)
@@ -111,6 +117,7 @@ def _call_st_embed(text: str, model: str) -> List[float]:
     return embedding.tolist()
 
 
+@wrap_provider("sentence-transformers")
 def _call_st_embed_batch(texts: List[str], model: str) -> List[List[float]]:
     """Generate embeddings for a batch of texts using sentence-transformers."""
     st_model = _get_st_model(model)
@@ -169,6 +176,7 @@ def _generate_mock_embedding(text: str, dimensions: int = 1536) -> List[float]:
     return embedding
 
 
+@wrap_provider("openai")
 @retry_with_exponential_backoff(
     max_retries=3,
     base_delay=1.0,

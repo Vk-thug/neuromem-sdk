@@ -7,6 +7,86 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-28
+
+First release driven by the H1 horizon of `research/04-technical-roadmap.v2.md`, plus a bundled developer-experience push: a local UI, an MCP tunnel for web-chat clients, plugins for Cursor and Antigravity, and Qdrant as the default vector store.
+
+### Added — Knowledge base + CRUD (Plate.js / Docling)
+
+- **Docling-powered knowledge-base ingestion** — drop a file (PDF / DOCX / XLSX / PPTX / MD / HTML / PNG / JPG) anywhere on the workspace and NeuroMem parses, chunks, embeds, and graph-links it. Module: `neuromem/core/ingest/` with parser registry (mirrors the cross-encoder reranker pattern), `MarkdownParser` (zero-dep), `DoclingParser` (gated `[ingest]` extra). New `KnowledgeBaseIngester` writes verbatim chunks + creates a SEMANTIC document-root node + `derived_from` links from each chunk to the root + `related` links between sibling chunks within a section. **Cognitive grounding**: schema-driven encoding (Bartlett 1932; Tse et al. 2007) — chunks share `source_id` so the SchemaIntegrator recognises document boundaries.
+- **Audit log for ingest jobs** — `neuromem/core/audit/ingest_log.py`. Per-stage telemetry (parse → embed → write → link) with cooperative cancellation. Subscribers wire into UI SSE.
+- **Three-pane Obsidian-like Workspace** as the new default UI route — `FileTree` (left) | `EditorTabs` + `PlateEditor` (centre) | `BacklinksPanel` (right). File tree groups memories by provenance: **Knowledge Base** (uploaded docs, by `source_id`), **Conversations** (organic episodic), **Working Memory** (live PFC slots from the brain layer). Tabs persist across page reloads via `localStorage`. Open-tab counter shows a soft "exceeds Cowan-4 working-memory limit" warning past 4 tabs.
+- **Plate.js Markdown editor** — block-based, plugins for headings / lists / blockquote / code / mention. Save semantics: `Cmd+S` + on-blur + 2s idle debounce. Each save triggers `PUT /api/memories/{id}` which performs a **soft-supersede**: old memory marked `deprecated=True`, new memory created with `supersedes` graph link to the old. Cognitive grounding: Nader (2000) reconsolidation — retrieved memories become labile and update creates a new trace, not a mutation.
+- **Drag-drop overlay** — full-workspace `IngestOverlay` intercepts file drops anywhere on the page, uploads via `POST /api/ingest/file`, and surfaces per-job progress as bottom-right toast notifications driven by SSE on `/api/ingest/stream/{id}`.
+- **CRUD API surface**: `POST /api/memories` (explicit add), `PUT /api/memories/{id}` (soft-supersede edit), `DELETE /api/memories/{id}` (already shipped). Plus ingest endpoints: `POST /api/ingest/file`, `GET /api/ingest`, `GET /api/ingest/{id}`, `DELETE /api/ingest/{id}` (cooperative cancel), `GET /api/ingest/stream/{id}` (SSE), `GET /api/ingest/parsers` (supported file suffixes).
+- **New optional extras**:
+  - `pip install 'neuromem-sdk[ingest]'` — Docling for universal document parsing.
+  - `pip install 'neuromem-sdk[ui]'` — adds `python-multipart` for FastAPI form handling.
+
+### Added — Developer surface (UI + MCP)
+
+- **Local UI** — new `neuromem-ui` console script. FastAPI app on `127.0.0.1:7777` + React/TypeScript SPA with seven routes (Workspace + Graph2D + Graph3D + RetrievalRuns + Observations + BrainTelemetry + MCPSetup): Workspace is the Obsidian-like three-pane shell; **2D Obsidian-style graph** (Cytoscape.js + `cose-bilkent`); **3D Jarvis-style brain** (react-force-graph-3d) with anatomically-anchored layout — hippocampus core for episodic + verbatim, neocortex shell for semantic, basal-ganglia ring for procedural, amygdala cluster for flashbulb / high-emotional, prefrontal-cortex orbital ring for working memory; Inngest-style **retrieval-run inspector** with per-stage timeline (vector search → hybrid boosts → BM25 → CE → LLM rerank → conflict resolution → brain gating); live observation feed via SSE; brain telemetry (Cowan-4 working memory slots, TD values, schema centroids); MCP setup page with copy-buttons for each web-chat client. Backend at `neuromem/ui/server.py`, frontend source at `ui/`. Install with `pip install 'neuromem-sdk[ui]'`.
+- **Audit-log infrastructure** (`neuromem/core/audit/`) — thread-safe ring buffers for `RetrievalRun` and `ObservationEvent` with subscribers for SSE streaming. Off by default; the UI server enables them on startup. Zero overhead in production until the UI is launched.
+- **MCP tunnel helper** — `neuromem-mcp --transport http --port 7799 --public` spawns `cloudflared` (or `ngrok` via `--tunnel-provider ngrok`), parses the public URL, and prints ready-to-paste config for Claude.ai / Gemini chat / ChatGPT. Persists to `~/.neuromem/mcp-public.json` for the UI to pick up. Module: `neuromem/mcp/tunnel.py`.
+- **Cursor plugin** — `plugins/cursor/.cursor/mcp.json` + README.
+- **Antigravity plugin** — `plugins/antigravity/.antigravity/mcp.json` + README.
+- **Web-chat client docs** — `plugins/docs/CLAUDE_AI_WEB.md`, `GEMINI_CHAT.md`, `CHATGPT.md` with the full tunnel-setup walkthrough.
+- **Qdrant as default vector store** — `neuromem.yaml` ships with `vector_store.type: qdrant` (host: localhost, port: 6333). New helper `_try_qdrant_or_fallback` in `neuromem/__init__.py` health-checks Qdrant on startup; on failure (service not running, `qdrant-client` not installed, host unreachable) logs a clear warning and falls back to the in-memory backend so single-machine "just works" stays true.
+
+### Added — H1 cognitive + engineering items (initial v0.4.0 cut)
+
+First release driven by the H1 horizon of `research/04-technical-roadmap.v2.md`. The four items that share `MemoryItem` + `RetrievalEngine` surface area (R10, R12, R7, R4) ship in this release; R1 (BaseStore), R2 (contextual chunks), R5 (forget sweep), R11 (injection tests), R3 (persistent graph), R6 (tokenizers), R9 (bug debts), R13 (harness) move to v0.4.1+ to keep the diff reviewable.
+
+### Added
+
+- **H1-R12 — `BeliefState` IntEnum (`SPECULATED`/`INFERRED`/`BELIEVED`/`KNOWN`)** on `MemoryItem`. Replaces the v0.3.x `inferred: bool` 1-bit signal with a 4-tier source-monitoring framework (Johnson, Hashtroudi, Lindsay 1993). Default is `BELIEVED`. Substrate for v0.5.0 H2-D7 calibrated abstention. _(`neuromem/core/types.py`)_
+- **H1-R10 — Emotional modulation of retrieval scores** (Phelps 2004 — amygdala modulates hippocampal consolidation). `apply_hybrid_boosts` now multiplies post-additive-boost scores by `1 + emotional_weight_factor * emotional_weight` and `1 + flashbulb_boost` when `metadata.flashbulb` is True. Defaults `0.10` / `0.20`; `0.0` matches v0.3.x behaviour. Applied at the post-CE-blend stage to sidestep the CE-dominance trap (`feedback_ce_dominance_trap.md`). _(`neuromem/core/hybrid_boosts.py`, `neuromem/constants.py`)_
+- **H1-R7 — Provider-tagged exceptions.** New `neuromem/utils/providers.py` ships `ProviderError` family (`ProviderRateLimitError` / `ProviderAuthError` / `ProviderTimeoutError` / `ProviderUnavailableError`) and a `wrap_provider("name")` decorator. Applied at OpenAI / Ollama / sentence-transformers embedding call sites. Closes Letta #3310 ("Rate limited by OpenAI" mislabel for non-OpenAI providers).
+- **H1-R4 — Swappable cross-encoder reranker.** New `retrieval.reranker.{provider, model}` YAML section + `CrossEncoderProvider` Protocol. Built-in providers: `sentence-transformers` (default, model `cross-encoder/ms-marco-MiniLM-L-12-v2`), `bge`, `cohere`, `openai` (placeholder until GA). `register_provider()` lets callers plug in any reranker without forking. Closes Graphiti #1393 (hardcoded reranker).
+- **D3 — `RetrievalResult` wrapper.** `NeuroMem.retrieve(...)` and `NeuroMem.retrieve_verbatim_only(...)` now return `RetrievalResult(items, confidence, abstained, abstention_reason)` with `__iter__` / `__len__` / `__getitem__` / `__bool__` backward-compat — existing `for item in memory.retrieve(...)` loops are unchanged. Done now (single break) so v0.5.0's calibrated abstention can populate the new fields without a second break.
+
+### Changed
+
+- `MemoryItem.to_dict()` now emits `belief_state` alongside the legacy `inferred` field. `MemoryItem.from_dict()` reads `belief_state` when present; falls back to `BeliefState.from_legacy_inferred(inferred)` for v0.3.x rows. **Postgres / SQLite / Qdrant migration is read-time-lazy — no schema migration script required** for v0.3.2 → v0.4.0.
+- `NeuroMem.retrieve(...)` return type annotation: `list[MemoryItem]` → `RetrievalResult`. Callers using only iteration / indexing / `len()` are unaffected.
+- `__version__` → `"0.4.0"`.
+
+### Deprecated
+
+- `MemoryItem.inferred: bool`. Kept as a derived mirror of `belief_state == INFERRED`. Will be removed in v0.6.0. New code should set `belief_state` directly.
+
+### Cognitive grounding
+
+| Feature | Citation | Phase-2 section |
+| --- | --- | --- |
+| BeliefState 4-tier | Johnson, Hashtroudi, Lindsay (1993) source monitoring | (new H1-R12) |
+| Emotional modulation | Phelps (2004); McGaugh (2000) | §12 |
+
+### Verified
+
+- All v0.3.2 benchmarks must still hold (regression gate per `04-technical-roadmap.v2.md` §0.3): MemBench R@5 = 97.0%, LongMemEval = 98.0%, ConvoMem = 81.3% — all reproduced with the publication recipe (sentence-transformers + verbatim-only). v0.4.0 changes are score-neutral by construction.
+- **348 tests pass** (with `pytest-asyncio` + `[mcp]` extra installed). 119 new v0.4.0 tests across 12 files: `test_v040_audit_log.py` (13), `test_v040_belief_state.py` (12), `test_v040_emotional_modulation.py` (4), `test_v040_ingest.py` (16), `test_v040_mcp_tunnel.py` (11), `test_v040_plugin_manifests.py` (6), `test_v040_provider_errors.py` (13), `test_v040_qdrant_default.py` (3), `test_v040_reranker_dispatch.py` (3), `test_v040_retrieval_result.py` (6), `test_v040_ui_crud_ingest.py` (11), `test_v040_ui_server.py` (21).
+- **Build verification**: `python -m build` produces a clean 250 KB wheel + sdist with all 16 v0.4.0 modules included. Wheel installs successfully and exposes `neuromem-mcp` + `neuromem-ui` console scripts. Both respond to `--help` without the `[mcp]` extra installed (deferred imports).
+- **Lint clean**: `ruff check` passes on every new module + test file.
+
+### How to install + run
+
+```bash
+# Core SDK + the v0.4.0 surface
+pip install 'neuromem-sdk[mcp,ui,qdrant,ingest]'
+
+# Optional: start Qdrant locally (else NeuroMem falls back to in-memory)
+docker run -d -p 6333:6333 qdrant/qdrant
+
+# Open the workspace UI
+neuromem-ui                                     # http://127.0.0.1:7777
+
+# Drag a PDF/DOCX/XLSX/PPTX/MD/HTML/PNG/JPG anywhere on the page → ingest
+
+# Expose your MCP server to web-chat clients
+neuromem-mcp --transport http --port 7799 --public
+```
+
 ## [0.3.2] - 2026-04-22
 
 ### Fixed — Beats MemPalace on ALL three benchmarks

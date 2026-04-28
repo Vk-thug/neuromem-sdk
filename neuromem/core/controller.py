@@ -303,13 +303,18 @@ class MemoryController:
                     try:
                         from neuromem.core.cross_encoder_reranker import (
                             rerank_with_cross_encoder,
+                            DEFAULT_CROSS_ENCODER,
+                            DEFAULT_PROVIDER,
                         )
 
+                        rr_cfg = rc.get("reranker", {}) if isinstance(rc, dict) else {}
                         scored = rerank_with_cross_encoder(
                             query=query_text,
                             items_with_scores=scored,
                             top_k=min(30, len(scored)),
                             blend_weight=_ce_w,
+                            model_name=rr_cfg.get("model", DEFAULT_CROSS_ENCODER),
+                            provider=rr_cfg.get("provider", DEFAULT_PROVIDER),
                         )
                     except Exception:
                         logger.debug("Cross-encoder unavailable, skipping", exc_info=True)
@@ -454,13 +459,19 @@ class MemoryController:
             try:
                 from neuromem.core.cross_encoder_reranker import (
                     rerank_with_cross_encoder,
+                    DEFAULT_CROSS_ENCODER,
+                    DEFAULT_PROVIDER,
                 )
 
+                rc_v = self.config.retrieval() if hasattr(self.config, "retrieval") else {}
+                rr_v = rc_v.get("reranker", {}) if isinstance(rc_v, dict) else {}
                 scored = rerank_with_cross_encoder(
                     query=query_text,
                     items_with_scores=scored,
                     top_k=min(ce_top_k, len(scored)),
                     blend_weight=ce_blend,
+                    model_name=rr_v.get("model", DEFAULT_CROSS_ENCODER),
+                    provider=rr_v.get("provider", DEFAULT_PROVIDER),
                 )
             except Exception:
                 logger.debug("Cross-encoder unavailable in verbatim-only path", exc_info=True)

@@ -14,9 +14,19 @@ neuromem:
       # url: neuromem.db  # For sqlite
       url: null  # For in-memory
 
-    # Vector store (optional, can use database for vectors too)
+    # Vector store — v0.4.0: Qdrant is the default. If Qdrant is not reachable
+    # at startup (no service on host:port), NeuroMem falls back to the in-memory
+    # backend and logs a warning. To pin in-memory explicitly, set type: memory.
     vector_store:
-      type: memory  # Options: chroma | pgvector | redis | memory
+      type: qdrant  # Options: qdrant | postgres | sqlite | memory
+      config:
+        host: localhost
+        port: 6333
+        collection_name: neuromem
+        # vector_size matches the embedding model in `model.embedding` above:
+        # 384 for all-MiniLM-L6-v2, 768 for nomic-embed-text,
+        # 1536/3072 for text-embedding-3-large.
+        vector_size: 768
       collection: user_memory
 
     # Cache configuration (optional)

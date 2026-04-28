@@ -7,8 +7,16 @@ Implements four boost signals inspired by MemPalace's hybrid v4 scoring:
 3. Person name — proper noun detection and matching
 4. Temporal proximity — date reference parsing and distance-based boosting
 
-Each boost independently increases the score of matching results.
-Applied after initial vector similarity ranking to refine ordering.
+Plus, in v0.4.0 (H1-R10), a multiplicative emotional modulation:
+5. Emotional weight (Phelps 2004) — amygdala-tagged emotional_weight scales
+   the final score multiplicatively, with an extra flashbulb bump. Cognitive
+   grounding: amygdala modulates hippocampal consolidation rather than
+   gating it; multiplicative form preserves that "modulation" framing.
+   Applied at this layer (post-CE) deliberately because CE blend at 0.9
+   means pre-CE scoring contributes only ~6% to final ordering.
+
+Each additive boost independently increases the score; the emotional
+multiplier scales the resulting boosted score.
 """
 
 from __future__ import annotations
@@ -242,6 +250,8 @@ def apply_hybrid_boosts(
     person_name_boost: float = constants.HYBRID_PERSON_NAME_BOOST,
     temporal_boost_max: float = constants.HYBRID_TEMPORAL_BOOST,
     query_date: Optional[datetime] = None,
+    emotional_weight_factor: float = constants.HYBRID_EMOTIONAL_WEIGHT_FACTOR,
+    flashbulb_boost: float = constants.HYBRID_FLASHBULB_BOOST,
 ) -> List[Tuple[object, float]]:
     """
     Apply hybrid boost signals to re-rank retrieval results.
@@ -257,6 +267,11 @@ def apply_hybrid_boosts(
         person_name_boost: Boost for person name match.
         temporal_boost_max: Max boost for temporal proximity.
         query_date: Reference date for temporal queries (defaults to now).
+        emotional_weight_factor: Multiplicative scaling against amygdala-tagged
+            emotional_weight. ``score *= 1 + factor * emotional_weight``.
+            ``0.0`` disables and matches v0.3.x behaviour. (v0.4.0+, H1-R10)
+        flashbulb_boost: Multiplicative bump when ``metadata.flashbulb`` is
+            True. ``score *= 1 + flashbulb_boost``. (v0.4.0+, H1-R10)
 
     Returns:
         Re-ranked list of (item, boosted_score) tuples.
@@ -344,9 +359,25 @@ def apply_hybrid_boosts(
                 t_boost = compute_temporal_boost(query_text, timestamp, query_date)
                 boost += temporal_boost_max * t_boost
 
-        # Apply boost to score (capped at 1.0)
-        new_score = min(1.0, score + boost)
-        boosted.append((item, new_score))
+        # Apply additive boost to score (uncapped here so the multiplicative
+        # emotional modulation below can lift items above 1.0; final cap at 1.0
+        # happens after modulation).
+        new_score = score + boost
+
+        # Signal 5 (v0.4.0): Emotional modulation — multiplicative.
+        # Phelps (2004): amygdala modulates hippocampal consolidation. We mirror
+        # that as a multiplier rather than an addend so emotional content with
+        # weak baseline similarity stays weak (no false positives), while
+        # emotionally salient hits with already-strong similarity get a real
+        # lift.
+        if emotional_weight_factor > 0.0:
+            ew = float(metadata.get("emotional_weight", 0.0) or 0.0)
+            if ew > 0.0:
+                new_score *= 1.0 + emotional_weight_factor * ew
+        if flashbulb_boost > 0.0 and metadata.get("flashbulb", False):
+            new_score *= 1.0 + flashbulb_boost
+
+        boosted.append((item, min(1.0, new_score)))
 
     # Re-sort by boosted score descending
     boosted.sort(key=lambda x: x[1], reverse=True)

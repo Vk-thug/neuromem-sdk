@@ -39,18 +39,24 @@ Memories are connected through a **knowledge graph** with entity extraction, ena
 
 ### Key Capabilities
 
+- **Local Workspace UI** *(v0.4.0)* — Obsidian-like three-pane layout (file tree · Plate.js block editor · backlinks panel) at `http://127.0.0.1:7777` via `neuromem-ui`. 2D Cytoscape graph + 3D anatomical "Jarvis brain" view (hippocampus / neocortex / basal ganglia / amygdala / PFC) on the same data.
+- **Knowledge-base ingestion** *(v0.4.0)* — drag any PDF / DOCX / XLSX / PPTX / MD / HTML / PNG / JPG anywhere on the workspace. Powered by [Docling](https://github.com/DS4SD/docling) (IBM Research). Schema-grounded: each chunk shares a `source_id` so the SchemaIntegrator (Tse et al. 2007) treats one upload as a coherent schema.
+- **Soft-supersede memory edits** *(v0.4.0)* — `PUT /api/memories/{id}` deprecates the old memory and creates a new one with a `supersedes` graph link. Reconsolidation-faithful (Nader 2000 — retrieved memories become labile and update creates a new trace, not a mutation).
+- **Web-chat MCP setup** *(v0.4.0)* — `neuromem-mcp --transport http --public` spawns a `cloudflared` tunnel and prints copy-paste JSON for Claude.ai · Gemini chat · ChatGPT.
 - **Beats MemPalace on MemBench, LongMemEval, and ConvoMem** head-to-head — [see Benchmarks](#benchmarks)
-- **Digital brain architecture** *(v0.3.0)* — 6 brain regions (hippocampus CA1/pattern-sep/pattern-comp, neocortex, amygdala, basal ganglia, prefrontal) with JSON-persisted state
+- **Digital brain architecture** *(v0.3.0)* — 6 brain regions (hippocampus CA1/pattern-sep/pattern-comp, neocortex, amygdala, basal ganglia, prefrontal) with JSON-persisted state. Emotional-weight modulation now wired into retrieval *(v0.4.0, Phelps 2004)*.
 - **Multimodal fusion** *(v0.3.0)* — text / audio / video encoders + late-fusion router + LiveKit bridge for voice agents
-- **Tunable retrieval pipeline** *(v0.3.2)* — BM25 + cross-encoder + HyDE + LLM rerank, with per-workload blend tuning via YAML
+- **Tunable retrieval pipeline** *(v0.3.2)* — BM25 + cross-encoder + HyDE + LLM rerank, with per-workload blend tuning via YAML. Cross-encoder provider is now swappable *(v0.4.0)*: `sentence-transformers` (default) · `bge` · `cohere` · `openai`.
+- **`BeliefState` source-monitoring** *(v0.4.0)* — `SPECULATED` / `INFERRED` / `BELIEVED` / `KNOWN` IntEnum on every memory (Johnson, Hashtroudi, Lindsay 1993). Substrate for v0.5.0's calibrated abstention.
 - **Graph-augmented retrieval** — entity-linked memory graph with backlinks, clusters, and bridge detection
 - **Multi-factor scoring** — similarity + salience + recency + reinforcement + confidence
 - **Structured query syntax** — filter by type, tag, confidence, date range, sentiment, intent
 - **Natural forgetting** — Ebbinghaus decay curves with reinforcement on access
 - **LLM-powered consolidation** — automatic episodic-to-semantic promotion via fact extraction
-- **8 framework adapters** — LangChain, LangGraph, LiteLLM, CrewAI, AutoGen, DSPy, Haystack, Semantic Kernel
-- **MCP server** — 12 tools for any MCP-compatible client (Claude, Cursor, etc.)
-- **4 storage backends** — PostgreSQL+pgvector, Qdrant, SQLite, In-Memory
+- **8 framework adapters + 5 IDE/chat plugins** — LangChain, LangGraph, LiteLLM, CrewAI, AutoGen, DSPy, Haystack, Semantic Kernel · plugins for Claude Code · Codex CLI · Gemini CLI · **Cursor** *(v0.4.0)* · **Antigravity** *(v0.4.0)*
+- **MCP server** — 12 tools for any MCP-compatible client (Claude.ai web · Gemini chat · ChatGPT · Cursor · Antigravity · etc.). Provider-tagged exceptions *(v0.4.0)* close Letta #3310.
+- **Qdrant default** *(v0.4.0)* — `vector_store.type: qdrant` with health-check fallback to in-memory if Qdrant isn't running.
+- **4 storage backends** — Qdrant (default), PostgreSQL+pgvector, SQLite, In-Memory
 - **Python 3.9+** — tested on 3.9 / 3.10 / 3.11 / 3.12 in CI
 
 ---
@@ -66,13 +72,23 @@ pip install neuromem-sdk
 With optional integrations:
 
 ```bash
-pip install neuromem-sdk[langchain]          # LangChain adapter
-pip install neuromem-sdk[langgraph]          # LangGraph adapter
-pip install neuromem-sdk[crewai]             # CrewAI adapter
-pip install neuromem-sdk[mcp]               # MCP server
-pip install neuromem-sdk[postgres]           # PostgreSQL backend
-pip install neuromem-sdk[qdrant]             # Qdrant backend
-pip install neuromem-sdk[all]               # Everything
+pip install 'neuromem-sdk[ui]'               # Local Workspace UI (FastAPI + uvicorn)
+pip install 'neuromem-sdk[ingest]'           # Docling — PDF/DOCX/XLSX/PPTX/HTML/image ingestion
+pip install 'neuromem-sdk[mcp]'              # MCP server
+pip install 'neuromem-sdk[qdrant]'           # Qdrant backend (recommended; v0.4.0 default)
+pip install 'neuromem-sdk[langchain]'        # LangChain adapter
+pip install 'neuromem-sdk[langgraph]'        # LangGraph adapter
+pip install 'neuromem-sdk[crewai]'           # CrewAI adapter
+pip install 'neuromem-sdk[postgres]'         # PostgreSQL backend
+pip install 'neuromem-sdk[all-no-dspy]'      # Everything except dspy
+```
+
+**Recommended v0.4.0 install** (UI + KB ingest + MCP + Qdrant):
+
+```bash
+pip install 'neuromem-sdk[mcp,ui,qdrant,ingest]'
+docker run -d -p 6333:6333 qdrant/qdrant     # optional — Qdrant gracefully falls back to in-memory
+neuromem-ui                                  # opens http://127.0.0.1:7777
 ```
 
 ### Configure
@@ -228,17 +244,65 @@ response = completion_with_memory(
 
 ---
 
+## Workspace UI (v0.4.0)
+
+A local Obsidian-like workspace at `http://127.0.0.1:7777`. Three panes
+(file tree · Plate.js block editor · backlinks) plus standalone routes
+for the 2D and 3D graph views, retrieval-run inspector, observation
+feed, brain telemetry, and MCP setup.
+
+```bash
+pip install 'neuromem-sdk[ui,ingest,qdrant]'
+neuromem-ui                                  # → http://127.0.0.1:7777
+```
+
+| Surface | What it does |
+|---|---|
+| **File tree** | Three groups — Knowledge Base (uploaded docs, by `source_id`) · Conversations (organic episodic) · Working Memory (live PFC slots, Cowan 4) |
+| **Plate.js editor** | Block-based Markdown · `[[wiki-links]]` to other memories · save = soft-supersede (`PUT /api/memories/{id}` deprecates old, creates new with `supersedes` graph link) |
+| **Backlinks panel** | Incoming + outgoing edges grouped by link_type (`derived_from` · `related` · `reinforces` · `contradicts` · `supersedes`) |
+| **2D graph** | Cytoscape.js + cose-bilkent · node colour = MemoryType · flashbulb pulses red |
+| **3D brain** | react-force-graph-3d with anatomical regions: hippocampus core · neocortex shell · basal-ganglia ring · amygdala cluster · PFC orbital ring |
+| **Retrieval inspector** | Inngest-style timeline of every `retrieve()` with full per-stage trace (vector → hybrid boosts → BM25 → CE → LLM rerank → conflict resolution → brain gating). SSE for live runs |
+| **KB drag-drop** | Drop a PDF / DOCX / XLSX / PPTX / MD / HTML / PNG / JPG anywhere on the workspace; Docling parses it; chunks land in verbatim store with `source_id` linkage |
+
+Frontend source lives in `ui/`; build it with:
+
+```bash
+cd ui && npm install && npm run build        # → static bundle in neuromem/ui/web/
+```
+
+The Python `neuromem-ui` server mounts that bundle at `/`, so the
+backend and SPA serve from the same port in production.
+
 ## MCP Server
 
 NeuroMem ships as a standalone MCP server with 12 tools, 3 resources, and 2 prompts.
 
 ```bash
-pip install neuromem-sdk[mcp]
+pip install 'neuromem-sdk[mcp]'
 
-# Start the server
+# Start the server (stdio — for Claude Code / Cursor / Codex CLI / Antigravity / Gemini CLI)
 python -m neuromem.mcp
 # Or: neuromem-mcp
+
+# v0.4.0: HTTP transport + public tunnel for web chat clients
+neuromem-mcp --transport http --port 7799 --public
+# → spawns cloudflared, prints copy-paste JSON for Claude.ai / Gemini chat / ChatGPT
 ```
+
+### Plugins shipped in v0.4.0
+
+| Client | Plugin path | Setup |
+|---|---|---|
+| Claude Code | `plugins/claude-code/` | `claude plugin install plugins/claude-code` |
+| Codex CLI | `plugins/codex-cli/` | drop into Codex CLI plugin dir |
+| Gemini CLI | `plugins/gemini-cli/` | drop into Gemini CLI extensions dir |
+| **Cursor** | `plugins/cursor/.cursor/mcp.json` | copy to your project's `.cursor/mcp.json` |
+| **Antigravity** | `plugins/antigravity/.antigravity/mcp.json` | copy to your project's `.antigravity/mcp.json` |
+| Claude.ai web | `plugins/docs/CLAUDE_AI_WEB.md` | run `--public` tunnel + paste URL |
+| Gemini chat | `plugins/docs/GEMINI_CHAT.md` | run `--public` tunnel + paste URL |
+| ChatGPT | `plugins/docs/CHATGPT.md` | run `--public` tunnel + paste URL |
 
 ### Tools
 
@@ -366,19 +430,13 @@ digest = memory.weekly_digest(week_start="2026-03-25")
 
 | Backend | Install | Use Case |
 |---------|---------|----------|
-| **In-Memory** | Built-in | Development, testing |
+| **Qdrant** *(v0.4.0 default)* | `pip install 'neuromem-sdk[qdrant]'` | Production, high-performance vector search |
+| **PostgreSQL + pgvector** | `pip install 'neuromem-sdk[postgres]'` | Production, large-scale |
 | **SQLite** | Built-in | Local development, small datasets |
-| **PostgreSQL + pgvector** | `pip install neuromem-sdk[postgres]` | Production, large-scale |
-| **Qdrant** | `pip install neuromem-sdk[qdrant]` | Production, high-performance vector search |
+| **In-Memory** | Built-in | Development, testing — also the v0.4.0 fallback when Qdrant is unreachable |
 
 ```yaml
-# PostgreSQL
-storage:
-  database:
-    type: postgres
-    url: postgresql://user:pass@localhost:5432/neuromem
-
-# Qdrant
+# Qdrant (v0.4.0 default — automatic fallback to in-memory if unreachable)
 storage:
   vector_store:
     type: qdrant
@@ -386,7 +444,20 @@ storage:
       host: localhost
       port: 6333
       collection_name: neuromem
+      vector_size: 768
+
+# PostgreSQL
+storage:
+  database:
+    type: postgres
+    url: postgresql://user:pass@localhost:5432/neuromem
 ```
+
+> **v0.4.0 graceful fallback**: if `vector_store.type: qdrant` is set but
+> Qdrant isn't reachable on startup, NeuroMem logs a clear warning
+> (with the `docker run` hint) and falls back to the in-memory backend.
+> This means `pip install neuromem-sdk` followed by `neuromem-ui` works
+> on a clean machine without any infra.
 
 ---
 

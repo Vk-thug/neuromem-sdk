@@ -74,6 +74,16 @@ HYBRID_QUOTED_PHRASE_BOOST = 0.60  # exact quoted phrase match
 HYBRID_PERSON_NAME_BOOST = 0.40  # person name match
 HYBRID_TEMPORAL_BOOST = 0.40  # temporal proximity max boost
 
+# Emotional Modulation (v0.4.0, H1-R10)
+# Multiplicative scaling of post-CE-blend scores by amygdala-tagged emotional
+# weight. Phelps (2004): amygdala MODULATES hippocampal consolidation rather
+# than gating it — multiplicative form matches that framing. Applied in
+# apply_hybrid_boosts so it sits post-CE (CE blend at 0.9 dominates pre-CE
+# pipeline; pre-CE wiring would be ~6% of final ordering, see
+# feedback_ce_dominance_trap.md).
+HYBRID_EMOTIONAL_WEIGHT_FACTOR = 0.10  # score *= 1 + factor * emotional_weight
+HYBRID_FLASHBULB_BOOST = 0.20         # score *= 1 + boost when metadata.flashbulb=True
+
 # Diversity/Inhibition
 DEFAULT_DIVERSITY_THRESHOLD = (
     0.75  # Similarity threshold for inhibition (lower = more diverse results)

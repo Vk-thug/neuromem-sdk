@@ -1,0 +1,46 @@
+{
+  "name": "@neuromem/ui",
+  "private": true,
+  "version": "0.4.0",
+  "description": "NeuroMem local UI — knowledge graph + retrieval inspector + MCP setup",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build --outDir ../neuromem/ui/web --emptyOutDir",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "cytoscape": "^3.30.2",
+    "cytoscape-cose-bilkent": "^4.1.0",
+    "react-force-graph-3d": "^1.27.1",
+    "three": "^0.169.0",
+    "three-spritetext": "^1.9.0",
+    "swr": "^2.2.5",
+    "clsx": "^2.1.1",
+    "platejs": "^45.0.0",
+    "@platejs/basic-nodes": "^45.0.0",
+    "@platejs/markdown": "^45.0.0",
+    "@platejs/mention": "^45.0.0",
+    "@platejs/slash-command": "^45.0.0",
+    "slate": "^0.110.0",
+    "slate-react": "^0.110.0",
+    "slate-history": "^0.110.0",
+    "react-dropzone": "^14.2.9"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.169.0",
+    "@types/cytoscape": "^3.21.7",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "tailwindcss": "^3.4.14",
+    "postcss": "^8.4.47",
+    "autoprefixer": "^10.4.20"
+  }
+}

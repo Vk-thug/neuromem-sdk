@@ -17,13 +17,68 @@ from neuromem.core.controller import MemoryController
 from neuromem.core.retrieval import RetrievalEngine
 from neuromem.core.consolidation import Consolidator
 from neuromem.core.decay import DecayEngine
-from neuromem.core.types import MemoryItem, MemoryType
+from neuromem.core.types import BeliefState, MemoryItem, MemoryType, RetrievalResult
 from neuromem.memory.episodic import EpisodicMemory
 from neuromem.memory.semantic import SemanticMemory
 from neuromem.memory.procedural import ProceduralMemory
 from neuromem.memory.session import SessionMemory
 from neuromem.storage.base import MemoryBackend
 from neuromem.utils.embeddings import get_embedding
+from neuromem.utils.logging import get_logger
+
+
+_logger = get_logger(__name__)
+
+
+def _try_qdrant_or_fallback(vs_params: dict):
+    """Attempt to initialize Qdrant; fall back to InMemoryBackend on failure.
+
+    v0.4.0 default. Failure modes:
+    * ``qdrant-client`` extra not installed (ImportError).
+    * Qdrant service not reachable at ``host:port`` (ConnectionError).
+    * Collection mismatch / Qdrant API error (any RuntimeError).
+
+    All three log a warning naming the cause + the install/start command,
+    then return an in-memory backend so the SDK still boots.
+    """
+    from neuromem.storage.memory import InMemoryBackend
+
+    try:
+        from neuromem.storage.qdrant import QdrantStorage
+    except ImportError as exc:
+        _logger.warning(
+            "Qdrant is the v0.4.0 default but qdrant-client is not installed; "
+            "falling back to in-memory backend. Install with "
+            "`pip install neuromem-sdk[qdrant]` to enable persistent vector "
+            "storage. Cause: %s",
+            exc,
+        )
+        return InMemoryBackend()
+
+    try:
+        backend = QdrantStorage(
+            host=vs_params.get("host", "localhost"),
+            port=vs_params.get("port", 6333),
+            collection_name=vs_params.get("collection_name", "neuromem"),
+            vector_size=vs_params.get("vector_size", 768),
+            api_key=vs_params.get("api_key"),
+            path=vs_params.get("path"),
+            url=vs_params.get("url"),
+        )
+    except Exception as exc:
+        host = vs_params.get("host", "localhost")
+        port = vs_params.get("port", 6333)
+        _logger.warning(
+            "Qdrant unreachable at %s:%s; falling back to in-memory backend. "
+            "Start Qdrant locally with: `docker run -p 6333:6333 qdrant/qdrant`. "
+            "Cause: %s",
+            host,
+            port,
+            exc,
+        )
+        return InMemoryBackend()
+
+    return backend
 
 
 class NeuroMem:
@@ -84,17 +139,11 @@ class NeuroMem:
 
         # Initialize Backend
         if vs_type == "qdrant":
-            from neuromem.storage.qdrant import QdrantStorage
-
-            backend = QdrantStorage(
-                host=vs_params.get("host", "localhost"),
-                port=vs_params.get("port", 6333),
-                collection_name=vs_params.get("collection_name", "neuromem"),
-                vector_size=vs_params.get("vector_size", 768),
-                api_key=vs_params.get("api_key"),
-                path=vs_params.get("path"),
-                url=vs_params.get("url"),
-            )
+            # v0.4.0: Qdrant is the default. Health-check on startup; on
+            # connection failure (service not running, wrong host/port, missing
+            # qdrant-client extra), log a clear warning and fall back to the
+            # in-memory backend so single-machine "just works" stays true.
+            backend = _try_qdrant_or_fallback(vs_params)
         elif vs_type == "postgres":
             from neuromem.storage.postgres import PostgresBackend
 
@@ -424,7 +473,9 @@ class NeuroMem:
     # RETRIEVAL
     # ----------------------------------------------------------------
 
-    def retrieve(self, query: str, task_type: str = "chat", k: int = 8, parallel: bool = True):
+    def retrieve(
+        self, query: str, task_type: str = "chat", k: int = 8, parallel: bool = True
+    ) -> RetrievalResult:
         """
         Retrieve relevant memories for a given query.
 
@@ -438,18 +489,25 @@ class NeuroMem:
             parallel: Use parallel retrieval (default: True)
 
         Returns:
-            List of MemoryItem objects
+            ``RetrievalResult`` wrapping the items list. Iterates as the
+            underlying ``list[MemoryItem]`` so existing callers using ``for
+            item in memory.retrieve(...)`` and ``list(memory.retrieve(...))``
+            continue to work unchanged. v0.4.0+: introduced this wrapper so
+            v0.5.0's calibrated abstention (H2-D7) can populate
+            ``confidence`` and ``abstained`` without a second breaking
+            change.
         """
         embedding = get_embedding(
             query, self.config.model().get("embedding", "text-embedding-3-large")
         )
-        return self.controller.retrieve_multihop(
+        items = self.controller.retrieve_multihop(
             query=query,
             embedding=embedding,
             task_type=task_type,
             k=k,
             parallel=parallel,
         )
+        return RetrievalResult(items=list(items))
 
     def retrieve_verbatim_only(
         self,
@@ -458,7 +516,7 @@ class NeuroMem:
         bm25_blend: float = 0.5,
         ce_blend: float = 0.9,
         ce_top_k: int = 30,
-    ):
+    ) -> RetrievalResult:
         """
         Deterministic 2-stage retrieval against verbatim chunks only.
 
@@ -468,11 +526,14 @@ class NeuroMem:
         benchmarks (MemBench) where cognitive-layer noise hurts precision.
 
         Requires verbatim.enabled=true in the YAML config.
+
+        Returns ``RetrievalResult`` (v0.4.0+); iterates as the underlying
+        items list for backward compatibility.
         """
         embedding = get_embedding(
             query, self.config.model().get("embedding", "text-embedding-3-large")
         )
-        return self.controller.retrieve_verbatim_only(
+        items = self.controller.retrieve_verbatim_only(
             embedding=embedding,
             query_text=query,
             k=k,
@@ -480,6 +541,7 @@ class NeuroMem:
             ce_blend=ce_blend,
             ce_top_k=ce_top_k,
         )
+        return RetrievalResult(items=list(items))
 
     def retrieve_with_context(self, query: str, task_type: str = "chat", k: int = 8):
         """
@@ -753,6 +815,8 @@ __all__ = [
     "UserManager",
     "MemoryItem",
     "MemoryType",
+    "BeliefState",
+    "RetrievalResult",
     "MemoryController",
     "RetrievalEngine",
     "Consolidator",
@@ -764,4 +828,4 @@ __all__ = [
     "MemoryBackend",
 ]
 
-__version__ = "0.3.2"
+__version__ = "0.4.0"

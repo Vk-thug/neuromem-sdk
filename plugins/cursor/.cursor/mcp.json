@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "python",
+      "args": ["-m", "neuromem.mcp"],
+      "env": {
+        "NEUROMEM_CONFIG": "${env:NEUROMEM_CONFIG}",
+        "NEUROMEM_USER_ID": "${env:NEUROMEM_USER_ID}",
+        "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
+      }
+    }
+  }
+}

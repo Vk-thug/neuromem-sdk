@@ -1,0 +1,4 @@
+# The vite build (`cd ui && npm run build`) writes its output into this
+# directory. Keeping the directory committed (via this .gitkeep) so the
+# FastAPI StaticFiles mount in neuromem.ui.server has a non-empty path
+# to bind to. Replace with the real bundle to ship the UI.
