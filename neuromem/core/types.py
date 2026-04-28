@@ -4,7 +4,7 @@ Core type definitions for the NeuroMem SDK.
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Iterator, List, Optional
+from typing import List, Optional
 from enum import Enum, IntEnum
 
 
