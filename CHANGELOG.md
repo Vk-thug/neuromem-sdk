@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-28
+
+Developer-experience release. No new features — every change reduces the friction of getting v0.4.0 working on a fresh machine. Targets the four setup paper-cuts surfaced during v0.4.0 onboarding: OpenAI-only LLM calls, embedding/vector-size mismatch in the default yaml, async writes invisible to follow-up reads, and `print()`-based error reporting.
+
+### Changed
+
+- **All LLM call sites now route through `neuromem.utils.llm.chat_completion`** — a single dispatcher that picks Ollama or OpenAI from the model name (mirrors `utils/embeddings.py`). Models prefixed `ollama/...` or matching a known local family (`qwen`, `llama`, `mistral`, `gemma`, `phi`, `gpt-oss`, `deepseek`, `codellama`, `tinyllama`) hit the local Ollama server; everything else hits OpenAI. Migrated five always-OpenAI sites: `utils/auto_tagger.py` (×2), `memory/consolidation.py` (×2), and `core/controller.py` multi-hop query decomposer (which previously hardcoded `gpt-4o-mini` — it now honours `model.consolidation_llm`).
+- **`neuromem.yaml` ships local-first** — `model.embedding: nomic-embed-text` (matches the existing `vector_size: 768`, eliminates the dim-mismatch trap), `model.consolidation_llm: ollama/qwen2.5-coder:7b`, `async.enabled: false`. Same flips applied to `config.create_default_config()` so programmatic users get the same defaults.
+- **`async.enabled` documented** as a production-only knob — the priority scheduler has no `flush()`/`drain()` API, so observe→read in the same logical step needs sync mode. Comment in `neuromem.yaml` flags this.
+- **Auto-tagger error reporting** — replaced the two bare `print(f"Error ...: {e}")` calls in `utils/auto_tagger.py` with `logger.warning(...)` carrying structured `extra={"error": ..., "model": ...}` context. Stops polluting stdout in production.
+
+### Added
+
+- **`neuromem/utils/llm.py`** — public helper module, exports `chat_completion(model, messages, *, temperature, max_tokens, ollama_base_url)` and `is_ollama_model(model)`. Honors `OLLAMA_BASE_URL` env var.
+
+### Migration
+
+- **Setups using OpenAI** — keep your existing `OPENAI_API_KEY` and set `model.embedding: text-embedding-3-large` + `model.consolidation_llm: gpt-4o-mini` in your `neuromem.yaml`. Remember to bump `storage.vector_store.config.vector_size` to `3072` *before* the Qdrant collection is created (Qdrant locks dimension at create time).
+- **Setups using Ollama** — no action required if you already had a local `nomic-embed-text` and a chat model. Pull `qwen2.5-coder:7b` (or any other local chat model) with `ollama pull qwen2.5-coder:7b` if you don't.
+
+### Fixed
+
+- `core/controller.py` multi-hop query decomposer hardcoded `gpt-4o-mini`, ignoring `model.consolidation_llm` from yaml. Now reads from config and routes via `chat_completion`.
+- `neuromem.yaml` shipped with `embedding: text-embedding-3-large` (3072-dim) but `vector_size: 768`. Inconsistent defaults caused silent embedding mismatches when users left `vector_size` alone.
+
 ## [0.4.0] - 2026-04-28
 
 First release driven by the H1 horizon of `research/04-technical-roadmap.v2.md`, plus a bundled developer-experience push: a local UI, an MCP tunnel for web-chat clients, plugins for Cursor and Antigravity, and Qdrant as the default vector store.

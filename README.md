@@ -39,6 +39,7 @@ Memories are connected through a **knowledge graph** with entity extraction, ena
 
 ### Key Capabilities
 
+- **Local-first defaults, zero-key setup** *(v0.4.1)* — every LLM call site (auto-tagging, consolidation, multi-hop query decomposition) routes through `neuromem.utils.llm.chat_completion`, which dispatches to local Ollama or OpenAI based on the model name. Default `neuromem.yaml` ships with `embedding: nomic-embed-text` + `consolidation_llm: ollama/qwen2.5-coder:7b`, so a fresh install with Ollama running needs **no `OPENAI_API_KEY`** to observe + retrieve.
 - **Local Workspace UI** *(v0.4.0)* — Obsidian-like three-pane layout (file tree · Plate.js block editor · backlinks panel) at `http://127.0.0.1:7777` via `neuromem-ui`. 2D Cytoscape graph + 3D anatomical "Jarvis brain" view (hippocampus / neocortex / basal ganglia / amygdala / PFC) on the same data.
 - **Knowledge-base ingestion** *(v0.4.0)* — drag any PDF / DOCX / XLSX / PPTX / MD / HTML / PNG / JPG anywhere on the workspace. Powered by [Docling](https://github.com/DS4SD/docling) (IBM Research). Schema-grounded: each chunk shares a `source_id` so the SchemaIntegrator (Tse et al. 2007) treats one upload as a coherent schema.
 - **Soft-supersede memory edits** *(v0.4.0)* — `PUT /api/memories/{id}` deprecates the old memory and creates a new one with a `supersedes` graph link. Reconsolidation-faithful (Nader 2000 — retrieved memories become labile and update creates a new trace, not a mutation).
@@ -83,7 +84,7 @@ pip install 'neuromem-sdk[postgres]'         # PostgreSQL backend
 pip install 'neuromem-sdk[all-no-dspy]'      # Everything except dspy
 ```
 
-**Recommended v0.4.0 install** (UI + KB ingest + MCP + Qdrant):
+**Recommended v0.4.1 install** (UI + KB ingest + MCP + Qdrant):
 
 ```bash
 pip install 'neuromem-sdk[mcp,ui,qdrant,ingest]'
@@ -91,19 +92,36 @@ docker run -d -p 6333:6333 qdrant/qdrant     # optional — Qdrant gracefully fa
 neuromem-ui                                  # opens http://127.0.0.1:7777
 ```
 
+**Zero-key setup with local Ollama (v0.4.1 default):**
+
+```bash
+ollama pull nomic-embed-text          # 768-dim embeddings
+ollama pull qwen2.5-coder:7b          # auto-tagging + consolidation + multi-hop decomposition
+pip install neuromem-sdk              # no OPENAI_API_KEY required
+```
+
 ### Configure
 
-Create a `neuromem.yaml`:
+Create a `neuromem.yaml`. **v0.4.1 ships local-first defaults** — Ollama for both embeddings and LLM calls. Override with OpenAI model names if you'd rather use `OPENAI_API_KEY`.
 
 ```yaml
 neuromem:
   model:
-    embedding: text-embedding-3-large
-    consolidation_llm: gpt-4o-mini
+    # v0.4.1 default: local Ollama, no API key required.
+    # Switch to `text-embedding-3-large` (3072-dim) + `gpt-4o-mini` for OpenAI —
+    # remember to also bump `vector_size` to 3072 BEFORE creating the Qdrant
+    # collection (Qdrant locks dimension at create-time).
+    embedding: nomic-embed-text
+    consolidation_llm: ollama/qwen2.5-coder:7b
 
   storage:
-    database:
-      type: memory          # memory | postgres | sqlite | qdrant
+    vector_store:
+      type: qdrant          # qdrant | postgres | sqlite | memory
+      config:
+        host: localhost
+        port: 6333
+        collection_name: neuromem
+        vector_size: 768    # 384=MiniLM-L6 · 768=nomic-embed-text · 3072=text-embedding-3-large
 
   memory:
     decay_enabled: true
@@ -113,13 +131,19 @@ neuromem:
     hybrid_enabled: true
 
   async:
+    # v0.4.1: keep `false` for local dev — observe queues to a worker
+    # with no flush()/drain() API, so writes are invisible to follow-up
+    # reads in the same process. Flip `true` for production throughput.
     enabled: false
 ```
 
-Set your API key:
+**Optional — using OpenAI instead of Ollama:**
 
 ```bash
 export OPENAI_API_KEY=sk-...
+# In neuromem.yaml: embedding: text-embedding-3-large
+#                   consolidation_llm: gpt-4o-mini
+#                   vector_size: 3072
 ```
 
 ### Use

@@ -250,7 +250,13 @@ def create_default_config(path: str = "neuromem.yaml"):
     """
     default_config = {
         "neuromem": {
-            "model": {"embedding": "text-embedding-3-large", "consolidation_llm": "gpt-4o-mini"},
+            # v0.4.1: defaults flipped to local-first (Ollama). Set
+            # `embedding: text-embedding-3-large` and `consolidation_llm: gpt-4o-mini`
+            # in your yaml to use OpenAI instead.
+            "model": {
+                "embedding": "nomic-embed-text",
+                "consolidation_llm": "ollama/qwen2.5-coder:7b",
+            },
             "storage": {
                 "vector_store": {"type": "memory", "collection": "user_memories"},
                 "cache": {"type": "memory", "ttl_seconds": 3600},

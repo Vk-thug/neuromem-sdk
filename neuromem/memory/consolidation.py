@@ -12,14 +12,18 @@ import json
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
 from neuromem.core.types import MemoryItem
+from neuromem.utils.llm import chat_completion, is_ollama_model
 from neuromem.utils.time import ensure_utc
 
+# `OPENAI_AVAILABLE` is retained for backward compatibility — earlier code
+# branched on it before this module gained Ollama support via `chat_completion`.
+# The actual provider dispatch now happens inside `chat_completion()` based on
+# `self.llm_model`, so we only need to know whether *some* provider is wired.
 try:
-    import openai
+    import openai  # noqa: F401  (kept so OPENAI_AVAILABLE works for OpenAI-only deployments)
 
     OPENAI_AVAILABLE = True
 except ImportError:
-    openai = None  # type: ignore
     OPENAI_AVAILABLE = False
 
 
@@ -87,11 +91,11 @@ Extract facts in JSON format:
 Only include facts with confidence >= {self.min_confidence}.
 Return ONLY the JSON array, no other text."""
 
-        if not OPENAI_AVAILABLE:
+        if not (OPENAI_AVAILABLE or is_ollama_model(self.llm_model)):
             return []
 
         try:
-            response = openai.chat.completions.create(
+            facts_json = chat_completion(
                 model=self.llm_model,
                 messages=[
                     {
@@ -102,8 +106,6 @@ Return ONLY the JSON array, no other text."""
                 ],
                 temperature=0.3,
             )
-
-            facts_json = response.choices[0].message.content.strip()
             # Remove markdown code blocks if present
             if facts_json.startswith("```"):
                 facts_json = facts_json.split("```")[1]
@@ -164,11 +166,11 @@ Return JSON:
   "salience": 0.0-1.0
 }}"""
 
-        if not OPENAI_AVAILABLE:
+        if not (OPENAI_AVAILABLE or is_ollama_model(self.llm_model)):
             return None
 
         try:
-            response = openai.chat.completions.create(
+            summary_json = chat_completion(
                 model=self.llm_model,
                 messages=[
                     {
@@ -179,8 +181,6 @@ Return JSON:
                 ],
                 temperature=0.3,
             )
-
-            summary_json = response.choices[0].message.content.strip()
             if summary_json.startswith("```"):
                 summary_json = summary_json.split("```")[1]
                 if summary_json.startswith("json"):

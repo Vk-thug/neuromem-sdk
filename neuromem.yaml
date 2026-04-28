@@ -1,10 +1,18 @@
 neuromem:
   model:
-    # Embedding model for vector representations
-    embedding: text-embedding-3-large
-    
-    # LLM for memory consolidation
-    consolidation_llm: gpt-4o-mini
+    # Embedding model for vector representations.
+    # v0.4.1 default: local Ollama `nomic-embed-text` (768-dim), matches
+    # `storage.vector_store.config.vector_size` below and works without an
+    # OPENAI_API_KEY. Switch to `text-embedding-3-large` (3072) if you want
+    # OpenAI quality — remember to also bump `vector_size` to 3072 BEFORE
+    # the Qdrant collection is created (the dimension is locked at create-time).
+    embedding: nomic-embed-text
+
+    # LLM for memory consolidation, auto-tagging, entity extraction, and
+    # multi-hop query decomposition. v0.4.1 routes any model name with an
+    # `ollama/` prefix (or a known local family like qwen/llama/mistral/gpt-oss)
+    # to the local Ollama server; everything else hits OpenAI.
+    consolidation_llm: ollama/qwen2.5-coder:7b
 
   storage:
     # Database backend
@@ -87,8 +95,11 @@ neuromem:
     recency_half_life_days: 30
 
   # Phase 2+: Async & Proactive Intelligence
+  # NOTE: async observe has no flush()/drain() API, so writes are not visible
+  # until the background worker pulls them off the queue. Keep `false` for
+  # local dev / setup verification; flip `true` for production throughput.
   async:
-    enabled: true
+    enabled: false
     critical_queue_size: 1000
     high_queue_size: 500
     medium_queue_size: 100

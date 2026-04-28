@@ -10,7 +10,11 @@ Automatically generates tags for memories based on:
 
 import json
 from typing import List, Dict, Any
-import openai
+
+from neuromem.utils.llm import chat_completion
+from neuromem.utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AutoTagger:
@@ -63,7 +67,7 @@ Return a JSON array of up to {max_tags} tags:
 Use lowercase and underscores. Return ONLY the JSON array."""
 
         try:
-            response = openai.chat.completions.create(
+            tags_json = chat_completion(
                 model=self.llm_model,
                 messages=[
                     {
@@ -74,8 +78,6 @@ Use lowercase and underscores. Return ONLY the JSON array."""
                 ],
                 temperature=0.3,
             )
-
-            tags_json = response.choices[0].message.content.strip()
             if tags_json.startswith("```"):
                 tags_json = tags_json.split("```")[1]
                 if tags_json.startswith("json"):
@@ -85,7 +87,10 @@ Use lowercase and underscores. Return ONLY the JSON array."""
             return tags[:max_tags]
 
         except Exception as e:
-            print(f"Error generating tags: {e}")
+            logger.warning(
+                "Auto-tagging failed, using heuristic fallback",
+                extra={"error": str(e)[:200], "model": self.llm_model},
+            )
             return self._fallback_tags(content)
 
     def _fallback_tags(self, content: str) -> List[str]:
@@ -159,7 +164,7 @@ Return JSON array of entities:
 Return ONLY the JSON array."""
 
         try:
-            response = openai.chat.completions.create(
+            entities_json = chat_completion(
                 model=self.llm_model,
                 messages=[
                     {"role": "system", "content": "You are an entity extraction system."},
@@ -167,8 +172,6 @@ Return ONLY the JSON array."""
                 ],
                 temperature=0.3,
             )
-
-            entities_json = response.choices[0].message.content.strip()
             if entities_json.startswith("```"):
                 entities_json = entities_json.split("```")[1]
                 if entities_json.startswith("json"):
@@ -178,7 +181,10 @@ Return ONLY the JSON array."""
             return entities
 
         except Exception as e:
-            print(f"Error extracting entities: {e}")
+            logger.warning(
+                "Entity extraction failed, returning empty list",
+                extra={"error": str(e)[:200], "model": self.llm_model},
+            )
             return []
 
     def classify_intent(self, content: str) -> str:

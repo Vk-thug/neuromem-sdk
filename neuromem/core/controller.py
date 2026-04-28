@@ -1037,9 +1037,7 @@ class MemoryController:
         Returns the original query if decomposition fails or is not applicable.
         """
         try:
-            import openai
-
-            client = openai.OpenAI()
+            from neuromem.utils.llm import chat_completion
 
             prompt = (
                 "Break this question into independent sub-questions that can each be "
@@ -1050,13 +1048,20 @@ class MemoryController:
                 "Sub-questions:"
             )
 
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
+            # Use the configured consolidation LLM (Ollama or OpenAI) — earlier
+            # this hardcoded "gpt-4o-mini", which broke setups without an OpenAI key.
+            decompose_model = (
+                self.config.model().get("consolidation_llm", "gpt-4o-mini")
+                if self.config
+                else "gpt-4o-mini"
+            )
+
+            raw = chat_completion(
+                model=decompose_model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=200,
             )
-            raw = response.choices[0].message.content.strip()
             sub_queries = [q.strip().lstrip("0123456789.-) ") for q in raw.split("\n") if q.strip()]
             # Only use decomposition if it produced multiple sub-queries
             if len(sub_queries) >= 2:

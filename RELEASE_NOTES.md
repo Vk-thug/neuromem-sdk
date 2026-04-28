@@ -4,6 +4,36 @@ This file tracks the **latest** release with context, positioning, and per-relea
 
 ---
 
+## v0.4.1 — Local-first defaults · unified LLM dispatcher (2026-04-28)
+
+**Previous version:** v0.4.0 · **PyPI:** `pip install neuromem-sdk==0.4.1`
+
+### Headline
+
+A pure developer-experience release: same features as v0.4.0, four fewer paper-cuts on a fresh laptop. If you have Ollama running with `nomic-embed-text` and a chat model (e.g. `qwen2.5-coder:7b`), `pip install neuromem-sdk==0.4.1` and `python -c "from neuromem import NeuroMem"` is all the setup you need — no `OPENAI_API_KEY`, no yaml editing, no embedding-dimension mismatch.
+
+### What changed (one paragraph)
+
+Every LLM call site in the SDK now routes through `neuromem.utils.llm.chat_completion`, a single dispatcher that picks Ollama or OpenAI from the model name — same prefix-routing pattern that `utils/embeddings.py` has used since v0.2.0. Five OpenAI-only call sites migrated (auto-tagger × 2, consolidation × 2, multi-hop query decomposer × 1). `neuromem.yaml` defaults flipped to local-first (`embedding: nomic-embed-text` to match the already-declared 768-dim Qdrant collection, `consolidation_llm: ollama/qwen2.5-coder:7b`, `async.enabled: false`). Two stray `print()` error reports in `auto_tagger.py` upgraded to structured `logger.warning(...)`. `core/controller.py` multi-hop decomposer no longer hardcodes `gpt-4o-mini` — it honours `model.consolidation_llm` like every other consolidation path.
+
+### Why this matters
+
+After v0.4.0 onboarding, the actual blockers to a "Qdrant-running, neuromem-sdk-installed, observe-and-retrieve" smoke were: (1) yaml shipped with mismatched embedding + vector_size; (2) async observe queues writes to a worker with no flush API, so observe→read in the same script returns 0 results; (3) auto-tagging hits OpenAI on every observe and spams stderr if the key is missing; (4) bare `print()` calls leaked into stdout. None of these are real features — they're config and dispatch issues. v0.4.1 fixes all four without changing any retrieval scoring or memory layer behaviour.
+
+### Migration
+
+- **Already on Ollama** — no action required. Pull `qwen2.5-coder:7b` (or any local chat model) if you don't have one yet.
+- **Want OpenAI** — set `model.embedding: text-embedding-3-large` + `model.consolidation_llm: gpt-4o-mini` in your `neuromem.yaml` and bump `storage.vector_store.config.vector_size: 3072` BEFORE the Qdrant collection is created (Qdrant locks dimension at create time — recreate the collection if you've already initialised it at 768).
+- **Production using async** — flip `async.enabled: true` in your yaml. The new default is sync because the scheduler has no flush API; that's fine for a single-user laptop but discards throughput in real workloads.
+
+### Compatibility
+
+- No public API removed. `neuromem.utils.llm` is additive.
+- `OPENAI_AVAILABLE` constant in `memory/consolidation.py` retained for backward compatibility with downstream code that imported it.
+- All existing `import openai` callers continue to work; only the *direct* `openai.chat.completions.create` call sites in the SDK were migrated.
+
+---
+
 ## v0.4.0 — Workspace · KB ingestion · 3D brain · MCP for everyone (2026-04-28)
 
 **Previous version:** v0.3.2 · **PyPI:** `pip install neuromem-sdk==0.4.0` · Wheel: `250 KB`
