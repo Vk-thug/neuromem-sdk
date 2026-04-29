@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-04-29
+
+Root-cause fix for v0.4.2 → v0.4.5 CI cascade: `ui/src/lib/` was silently gitignored.
+
+### Fixed
+
+- `.gitignore`: anchored Python packaging patterns to repo root (`lib/` → `/lib/`, `build/` → `/build/`, etc). The unanchored `lib/` pattern matched `ui/src/lib/` and prevented `api.ts` + `state/tabs.ts` from ever being committed.
+- Now-tracked: `ui/src/lib/api.ts`, `ui/src/lib/state/tabs.ts`. Local builds always worked because the files were on disk; CI failed because they were missing from git.
+
 ## [0.4.5] - 2026-04-29
 
 v0.4.4's relative-path imports still failed on Linux CI vite (extension probing didn't kick in, even with `resolve.extensions` explicit). v0.4.5 writes the `.ts` extension explicitly so vite/rollup never has to probe.

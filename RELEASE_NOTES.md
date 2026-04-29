@@ -4,6 +4,23 @@ This file tracks the **latest** release with context, positioning, and per-relea
 
 ---
 
+## v0.4.6 — Root-cause fix: `ui/src/lib/` was gitignored (2026-04-29)
+
+**Previous version:** v0.4.5 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.6`
+
+The actual root cause of v0.4.2 → v0.4.5's CI build failures: the project `.gitignore` had `lib/` (a Python distribution-packaging idiom for `/lib/`, `/lib64/`). Git's `lib/` pattern matches **any** directory named `lib/`, including `ui/src/lib/`. Result: `ui/src/lib/api.ts` and `ui/src/lib/state/tabs.ts` were silently never committed. Locally everything worked because the files existed on disk. CI checked out a fresh tree, got no `lib/` directory, and vite's import resolver had nothing to find — regardless of which alias / relative-path / extension trick we tried.
+
+Every fix from v0.4.3 → v0.4.5 was treating the symptom. v0.4.6 actually commits the missing files and anchors the gitignore patterns to the repo root.
+
+### What changed (vs v0.4.5)
+
+- `.gitignore`: `lib/` → `/lib/`, `build/` → `/build/`, `dist/` → `/dist/`, `lib64/` → `/lib64/`. Same effect for repo-root packaging dirs, no false matches in nested SPA paths.
+- `ui/src/lib/api.ts` and `ui/src/lib/state/tabs.ts` now actually tracked in git.
+
+The retag chain (v0.4.2 alias → v0.4.3 array-form → v0.4.4 relative paths → v0.4.5 `.ts` extensions) is left as PR-history evidence; no source-code rollback was needed because the explicit `.ts` extensions still work fine and require no future cleanup.
+
+---
+
 ## v0.4.5 — v0.4.2 features + explicit `.ts` extensions in imports (2026-04-29)
 
 **Previous version:** v0.4.4 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.5`
