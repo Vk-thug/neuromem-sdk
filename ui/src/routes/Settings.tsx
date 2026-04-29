@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { api } from '../lib/api'
+import { api } from '@/lib/api'
 
 type AnyDoc = Record<string, any>
 
