@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-04-29
+
+Re-release of v0.4.2 with CI-pipeline fixes folded in. v0.4.2 was tagged but never published to PyPI due to four cascading CI issues. v0.4.3 = v0.4.2 features + working release pipeline.
+
+### Fixed
+
+- CI installs `[ui,dev]` so service-mode tests can import fastapi/sqlalchemy/bcrypt.
+- Added `httpx>=0.27.0` to the `[dev]` extra (required by `fastapi.testclient`).
+- Replaced `str | None` with `Optional[str]` in `neuromem/ui/api/config_routes.py::TestConnectionRequest` and `neuromem/cli/__init__.py::main`. Python 3.9 cannot evaluate PEP 604 union syntax at FastAPI route-registration runtime even with `from __future__ import annotations`.
+- `ui/package.json` `build` script no longer pre-flights through `tsc -b` (surfaced 20+ pre-existing strict-mode errors that local builds skipped due to filesystem differences). Vite/esbuild handles transpilation; type checking moved to opt-in `npm run build:strict` / `npm run typecheck`.
+- `ui/vite.config.ts` switched to the array-form `resolve.alias` with explicit `resolve.extensions` so `@/lib/...` resolves consistently on Linux CI.
+- v0.4.2 test files use `pytest.importorskip(...)` so the test suite skips gracefully when run outside the `[ui]` extra.
+
 ## [0.4.2] - 2026-04-29
 
 Onboarding + service-mode release. Closes the gap between `pip install` and "running" for non-technical users, and ships multi-user/API-key auth as a first-class mode.

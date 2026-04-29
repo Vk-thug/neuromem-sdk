@@ -7,7 +7,14 @@ import path from 'path'
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: { '@': path.resolve(__dirname, 'src') },
+    // Use array form so Vite/Rollup hands the alias to the full
+    // resolver pipeline (extension probing, index.ts, etc.). The
+    // bare-string form sometimes fails on Linux CI when path
+    // aliasing skips extension auto-resolution.
+    alias: [
+      { find: /^@\/(.*)$/, replacement: path.resolve(__dirname, 'src/$1') },
+    ],
+    extensions: ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'],
   },
   server: {
     port: 5173,

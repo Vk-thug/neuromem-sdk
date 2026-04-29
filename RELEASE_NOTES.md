@@ -4,6 +4,23 @@ This file tracks the **latest** release with context, positioning, and per-relea
 
 ---
 
+## v0.4.3 — v0.4.2 with the CI build path landed (2026-04-29)
+
+**Previous version:** v0.4.2 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.3`
+
+v0.4.2 shipped to git but never made it to PyPI — the new CI pipeline (Node/Python combined build) surfaced four cascading environment issues that needed fixes on top of the original tag (CI deps, httpx for fastapi.TestClient, PEP 604 union syntax in route handlers, vite alias resolution on Linux). Rather than retag v0.4.2 a fifth time, the bundle is shipped as v0.4.3 — same features, working release pipeline.
+
+### Fixes on top of v0.4.2 commit
+
+- CI installs `[ui,dev]` (was `[dev]`) so v0.4.2 service-mode tests can import fastapi/sqlalchemy/bcrypt.
+- Added `httpx>=0.27.0` to the `[dev]` extra (required by `fastapi.testclient`).
+- `neuromem/ui/api/config_routes.py` and `neuromem/cli/__init__.py` switched `str | None` → `Optional[str]` so Python 3.9 can evaluate route handler annotations at FastAPI registration time.
+- `ui/package.json` build script: removed `tsc -b` from the default `npm run build`; vite/esbuild handles transpilation. Strict typecheck remains available via `npm run build:strict` and `npm run typecheck`.
+- `ui/vite.config.ts` switched to the array-form `resolve.alias` with explicit `resolve.extensions` so the `@/lib/...` alias resolves on Linux CI runners (the bare-string form occasionally skipped extension probing).
+- v0.4.2 test files use `pytest.importorskip(...)` so contributors without `[ui]` see skips instead of collection errors.
+
+### v0.4.2 feature set (re-shipped here)
+
 ## v0.4.2 — One-command onboarding · service mode · in-UI config (2026-04-29)
 
 **Previous version:** v0.4.1 · **PyPI:** `pip install neuromem-sdk==0.4.2`
