@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import clsx from 'clsx'
-import { api, type MemoryRecord } from '@/lib/api'
+import { api, type MemoryRecord } from '../../lib/api'
 
 /**
  * Obsidian-like vault tree — three top-level groups:

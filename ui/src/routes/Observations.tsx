@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import useSWR from 'swr'
-import { api } from '@/lib/api'
+import { api } from '../lib/api'
 
 export default function Observations() {
   const { data, mutate } = useSWR('/observations', () => api.observations(300), {

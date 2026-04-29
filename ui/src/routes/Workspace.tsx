@@ -5,8 +5,8 @@ import EditorTabs from '@/components/workspace/EditorTabs'
 import PlateEditor from '@/components/workspace/PlateEditor'
 import BacklinksPanel from '@/components/workspace/BacklinksPanel'
 import IngestOverlay from '@/components/workspace/IngestOverlay'
-import { api, type MemoryRecord } from '@/lib/api'
-import { loadTabs, saveTabs } from '@/lib/state/tabs'
+import { api, type MemoryRecord } from '../lib/api'
+import { loadTabs, saveTabs } from '../lib/state/tabs'
 
 /**
  * Three-pane Obsidian-like workspace:

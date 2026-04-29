@@ -4,6 +4,21 @@ This file tracks the **latest** release with context, positioning, and per-relea
 
 ---
 
+## v0.4.4 — v0.4.2 features + relative-path imports (2026-04-29)
+
+**Previous version:** v0.4.3 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.4`
+
+v0.4.3 attempted to fix the vite path-alias resolution on Linux CI by switching to the array-form `resolve.alias` with explicit extensions. That still failed (`vite:load-fallback` couldn't find `.ts` for `@/lib/...` imports on the CI runner). Rather than chase the macOS↔Linux vite resolver discrepancy further, v0.4.4 converts every `@/lib/*` import to a relative path. Same SPA, no alias dependency, no CI surprise.
+
+### What changed (vs v0.4.3 commit)
+
+- `ui/src/{routes,components,components/workspace}/*.tsx` — all `from '@/lib/...'` imports converted to relative paths (`'../lib/...'`, `'../../lib/...'`).
+- `ui/vite.config.ts` keeps the alias defined for editor jump-to-definition, but no source code relies on it for the production build.
+
+Everything else from the v0.4.2 plan ships unchanged. See the v0.4.2 section below for the full feature list.
+
+---
+
 ## v0.4.3 — v0.4.2 with the CI build path landed (2026-04-29)
 
 **Previous version:** v0.4.2 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.3`

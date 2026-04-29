@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-04-29
+
+v0.4.3's vite alias-form fix didn't resolve the Linux-CI build failure. v0.4.4 takes the pragmatic path: drop the `@/` alias from runtime imports entirely.
+
+### Fixed
+
+- All 16 SPA source files using `from '@/lib/api'` (etc.) converted to relative paths. Removes the macOS↔Linux vite resolver discrepancy from the build path.
+- `ui/vite.config.ts` keeps the alias defined for editor JTD, but no production source relies on it.
+
 ## [0.4.3] - 2026-04-29
 
 Re-release of v0.4.2 with CI-pipeline fixes folded in. v0.4.2 was tagged but never published to PyPI due to four cascading CI issues. v0.4.3 = v0.4.2 features + working release pipeline.

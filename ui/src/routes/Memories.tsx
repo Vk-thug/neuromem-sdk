@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import useSWR from 'swr'
-import { api, type MemoryRecord } from '@/lib/api'
+import { api, type MemoryRecord } from '../lib/api'
 
 const TYPE_PILL: Record<string, string> = {
   episodic: 'bg-blue-900/40 text-blue-300',

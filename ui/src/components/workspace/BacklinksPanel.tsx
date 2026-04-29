@@ -1,5 +1,5 @@
 import useSWR from 'swr'
-import { api } from '@/lib/api'
+import { api } from '../../lib/api'
 
 /**
  * Right-pane "Linked mentions" view.

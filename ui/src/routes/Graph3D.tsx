@@ -1,7 +1,7 @@
 import useSWR from 'swr'
 import ForceGraph3DView from '@/components/ForceGraph3D'
 import { REGIONS } from '@/components/brain/regions'
-import { api } from '@/lib/api'
+import { api } from '../lib/api'
 
 export default function Graph3D() {
   const { data, error, isLoading } = useSWR('/graph/3d', api.graph3d)
