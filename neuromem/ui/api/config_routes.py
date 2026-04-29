@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -43,9 +43,9 @@ class ConfigPatch(BaseModel):
 
 class TestConnectionRequest(BaseModel):
     target: str  # 'ollama' | 'qdrant' | 'postgres'
-    host: str | None = None
-    port: int | None = None
-    url: str | None = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+    url: Optional[str] = None
 
 
 def _resolve_config_path() -> Path:

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Callable, Dict
+from typing import Callable, Dict, List, Optional
 
 
 def _cmd_init(argv: list[str]) -> int:
@@ -82,7 +82,7 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
 
     if not argv or argv[0] in ("-h", "--help"):
