@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import useSWR from 'swr'
 import clsx from 'clsx'
-import { api, type RetrievalRun, type RetrievalStage } from '../lib/api'
+import { api, type RetrievalRun, type RetrievalStage } from '../lib/api.ts'
 
 const STATUS_COLOR: Record<string, string> = {
   completed: 'text-emerald-400',

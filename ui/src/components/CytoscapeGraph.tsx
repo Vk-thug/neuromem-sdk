@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import cytoscape, { type Core, type ElementDefinition } from 'cytoscape'
 // @ts-expect-error — no types ship with this layout extension
 import coseBilkent from 'cytoscape-cose-bilkent'
-import type { Graph2D } from '../lib/api'
+import type { Graph2D } from '../lib/api.ts'
 
 cytoscape.use(coseBilkent)
 

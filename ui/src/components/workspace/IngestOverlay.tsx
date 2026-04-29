@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useDropzone } from 'react-dropzone'
 import useSWR from 'swr'
 import clsx from 'clsx'
-import { api, type IngestJob } from '../../lib/api'
+import { api, type IngestJob } from '../../lib/api.ts'
 
 /**
  * Full-workspace drag-drop overlay. Mounts at the workspace root and

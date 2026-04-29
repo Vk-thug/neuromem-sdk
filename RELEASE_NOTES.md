@@ -4,6 +4,21 @@ This file tracks the **latest** release with context, positioning, and per-relea
 
 ---
 
+## v0.4.5 — v0.4.2 features + explicit `.ts` extensions in imports (2026-04-29)
+
+**Previous version:** v0.4.4 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.5`
+
+v0.4.4 converted `@/lib/...` imports to relative paths (`'../lib/...'`). Linux CI vite/rollup still couldn't resolve them — the extension-probing step that local macOS vite does seamlessly was failing on CI even with `resolve.extensions` explicitly set. The fix in v0.4.5 is brutally simple: write the `.ts` extension in every import. `tsconfig.json` already had `allowImportingTsExtensions: true` for this exact case. No more extension-probing, no more CI surprises.
+
+### What changed (vs v0.4.4)
+
+- 16 SPA files: `from '../lib/api'` → `from '../lib/api.ts'`. Same for `lib/state/tabs.ts`.
+- vite/rollup never has to guess; the path on disk and the path in the import literal match exactly.
+
+Everything else from v0.4.2 ships unchanged.
+
+---
+
 ## v0.4.4 — v0.4.2 features + relative-path imports (2026-04-29)
 
 **Previous version:** v0.4.3 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.4`

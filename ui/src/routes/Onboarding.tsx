@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { api } from '../lib/api'
+import { api } from '../lib/api.ts'
 
 type Mode = 'single' | 'service'
 type EmbeddingProvider = 'ollama' | 'openai'

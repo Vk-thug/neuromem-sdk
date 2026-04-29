@@ -14,8 +14,8 @@ import {
   BaseH3Plugin,
   BaseBlockquotePlugin,
 } from '@platejs/basic-nodes'
-import type { MemoryRecord } from '../../lib/api'
-import { api } from '../../lib/api'
+import type { MemoryRecord } from '../../lib/api.ts'
+import { api } from '../../lib/api.ts'
 
 /**
  * Plate.js editor for a single memory.

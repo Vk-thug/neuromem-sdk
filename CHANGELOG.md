@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.5] - 2026-04-29
+
+v0.4.4's relative-path imports still failed on Linux CI vite (extension probing didn't kick in, even with `resolve.extensions` explicit). v0.4.5 writes the `.ts` extension explicitly so vite/rollup never has to probe.
+
+### Fixed
+
+- All 16 SPA source files: `from '../lib/api'` → `from '../lib/api.ts'`. `tsconfig.json` already had `allowImportingTsExtensions: true` for exactly this scenario.
+
 ## [0.4.4] - 2026-04-29
 
 v0.4.3's vite alias-form fix didn't resolve the Linux-CI build failure. v0.4.4 takes the pragmatic path: drop the `@/` alias from runtime imports entirely.

@@ -1,5 +1,5 @@
 import useSWR from 'swr'
-import { api } from '../lib/api'
+import { api } from '../lib/api.ts'
 
 export default function BrainTelemetry() {
   const { data } = useSWR('/brain', api.brain, { refreshInterval: 1000 })

@@ -1,6 +1,6 @@
 import useSWR from 'swr'
 import CytoscapeGraph from '@/components/CytoscapeGraph'
-import { api } from '../lib/api'
+import { api } from '../lib/api.ts'
 
 export default function Graph2D() {
   const { data, error, isLoading } = useSWR('/graph/2d', api.graph2d)

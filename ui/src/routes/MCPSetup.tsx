@@ -1,6 +1,6 @@
 import useSWR from 'swr'
 import { useState } from 'react'
-import { api } from '../lib/api'
+import { api } from '../lib/api.ts'
 
 const CLIENT_LABELS: Record<string, string> = {
   claude_ai: 'Claude.ai (web)',

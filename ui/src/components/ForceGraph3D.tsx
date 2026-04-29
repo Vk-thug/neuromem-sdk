@@ -3,7 +3,7 @@ import ForceGraph3D from 'react-force-graph-3d'
 import * as THREE from 'three'
 import SpriteText from 'three-spritetext'
 import { REGIONS, regionFor, type Region } from './brain/regions'
-import type { Graph3D, GraphNode } from '../lib/api'
+import type { Graph3D, GraphNode } from '../lib/api.ts'
 
 interface Props {
   data: Graph3D
