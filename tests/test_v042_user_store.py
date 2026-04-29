@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import pytest
 
-from neuromem.user import UserManager
-from neuromem.user_store import (
-    InMemoryUserStore,
+pytest.importorskip("sqlalchemy", reason="requires neuromem-sdk[ui]")
+pytest.importorskip("bcrypt", reason="requires neuromem-sdk[ui]")
+
+from neuromem.user import UserManager  # noqa: E402
+from neuromem.user_store import (  # noqa: E402
     SqlUserStore,
     generate_api_key,
     hash_api_key,

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import os
-import tempfile
 import uuid
 from pathlib import Path
 
 import pytest
 import yaml
-from fastapi.testclient import TestClient
+
+pytest.importorskip("fastapi", reason="requires neuromem-sdk[ui]")
+from fastapi.testclient import TestClient  # noqa: E402
 
 
 @pytest.fixture

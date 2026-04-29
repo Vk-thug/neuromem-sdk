@@ -45,7 +45,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -e ".[dev]"
+          # v0.4.2: [ui] adds fastapi, sqlalchemy, bcrypt, questionary —
+          # required by tests/test_v042_*.py.
+          pip install -e ".[dev,ui]"
 
       - name: Lint with ruff
         run: ruff check neuromem/
