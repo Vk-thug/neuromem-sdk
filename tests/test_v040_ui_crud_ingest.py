@@ -58,9 +58,7 @@ def mock_memory(monkeypatch) -> Any:
     items = [_build_item("m1", "User prefers Python")]
 
     backend = MagicMock()
-    backend.get_by_id.side_effect = lambda mid: next(
-        (i for i in items if i.id == mid), None
-    )
+    backend.get_by_id.side_effect = lambda mid: next((i for i in items if i.id == mid), None)
 
     def _update(item):
         for idx, existing in enumerate(items):

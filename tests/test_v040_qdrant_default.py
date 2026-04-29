@@ -48,9 +48,9 @@ class TestQdrantFallback:
         with open(repo_root / "neuromem.yaml", encoding="utf-8") as fh:
             cfg = yaml.safe_load(fh)
         vs = cfg["neuromem"]["storage"]["vector_store"]
-        assert vs["type"] == "qdrant", (
-            "v0.4.0 default vector_store.type must be qdrant; got " + repr(vs["type"])
-        )
+        assert (
+            vs["type"] == "qdrant"
+        ), "v0.4.0 default vector_store.type must be qdrant; got " + repr(vs["type"])
 
 
 if __name__ == "__main__":

@@ -17,7 +17,6 @@ from neuromem.core.hybrid_boosts import (
     parse_temporal_offset,
 )
 
-
 # ── Keyword Extraction ──
 
 
@@ -214,9 +213,7 @@ class TestApplyHybridBoosts:
             (_make_item("Sarah yoga abstract art painting"), 0.9),
         ]
         # All boosts fire — should cap at 1.0
-        boosted = apply_hybrid_boosts(
-            items, 'What did Sarah say about "abstract art" and yoga?'
-        )
+        boosted = apply_hybrid_boosts(items, 'What did Sarah say about "abstract art" and yoga?')
         assert boosted[0][1] <= 1.0
 
     def test_empty_items(self) -> None:
@@ -233,9 +230,7 @@ class TestApplyHybridBoosts:
             (_make_item("Old session content", {"timestamp": "2024/01/01"}), 0.5),
             (_make_item("Recent session content", {"timestamp": "2024/03/14"}), 0.4),
         ]
-        boosted = apply_hybrid_boosts(
-            items, "What happened yesterday?", query_date=query_date
-        )
+        boosted = apply_hybrid_boosts(items, "What happened yesterday?", query_date=query_date)
         # Recent item should get temporal boost
         assert boosted[0][0].content == "Recent session content"
 
@@ -259,19 +254,13 @@ class TestApplyHybridBoosts:
         Regression guard: a short turn with partial overlap should rank
         ABOVE a short turn with ZERO overlap at the same base score.
         """
-        relevant = _make_item(
-            "[User] My brother has an associate degree. [Assistant] Got it."
-        )
-        distractor = _make_item(
-            "[User] The weather is very nice today. [Assistant] Enjoy the sun."
-        )
+        relevant = _make_item("[User] My brother has an associate degree. [Assistant] Got it.")
+        distractor = _make_item("[User] The weather is very nice today. [Assistant] Enjoy the sun.")
         items = [
             (distractor, 0.5),
             (relevant, 0.5),  # Same base score — boost must break the tie
         ]
-        boosted = apply_hybrid_boosts(
-            items, "What is the age of someone with an Associate Degree?"
-        )
+        boosted = apply_hybrid_boosts(items, "What is the age of someone with an Associate Degree?")
         # Relevant turn must be ranked first after boost
         assert "associate degree" in boosted[0][0].content.lower()
         assert boosted[0][1] > boosted[1][1]

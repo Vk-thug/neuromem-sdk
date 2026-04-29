@@ -15,7 +15,6 @@ from neuromem.multimodal.router import ModalityRouter
 from neuromem.multimodal.livekit.vad_sampler import VADSampler
 from neuromem.multimodal.livekit.frame_sampler import VideoFrameSampler
 
-
 # ── MultimodalInput Type ──
 
 

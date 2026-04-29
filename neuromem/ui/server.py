@@ -152,6 +152,38 @@ def create_app(memory: "NeuroMem") -> FastAPI:
     default_observation_log.enable()
     default_ingest_log.enable()
 
+    # Mount /api/config first so it wins over the static SPA mount at "/".
+    from neuromem.ui.api.config_routes import build_router as _build_config_router
+
+    app.include_router(_build_config_router())
+
+    # Service mode (v0.4.2): swap UserManager to SqlUserStore, attach the
+    # API-key middleware, and expose /api/users for key minting. Single-user
+    # mode skips this entirely — no auth, no DB required for users.
+    try:
+        from neuromem.config_schema import ConfigService
+        import os as _os
+
+        _cfg_path = _os.environ.get("NEUROMEM_CONFIG", "neuromem.yaml")
+        _cfg_doc = ConfigService(_cfg_path).load_or_default()
+    except Exception as _exc:  # pragma: no cover - defensive
+        logger.warning("config load failed during service-mode setup: %s", _exc)
+        _cfg_doc = None
+
+    if _cfg_doc is not None and _cfg_doc.mode == "service":
+        from neuromem.ui.api.auth import (
+            APIKeyAuthMiddleware,
+            build_users_router,
+            configure_user_backend_for_service_mode,
+        )
+
+        _db_url = _cfg_doc.storage.database.url
+        if _db_url:
+            configure_user_backend_for_service_mode(_db_url)
+        app.add_middleware(APIKeyAuthMiddleware)
+        app.include_router(build_users_router())
+        logger.info("service mode active: API-key auth enabled, users router mounted")
+
     # KB ingester — lazy-init on first upload (heavy Docling import).
     _kb_ingester = {"instance": None}
 

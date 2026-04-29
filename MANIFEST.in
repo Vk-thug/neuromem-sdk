@@ -4,3 +4,7 @@ include neuromem.yaml
 include requirements.txt
 recursive-include examples *
 recursive-include tests *
+# v0.4.2: ship the built SPA bundle inside the wheel so `pip install
+# neuromem-sdk` followed by `neuromem ui` works without an npm step.
+# CI builds the SPA into neuromem/ui/web/ before `python -m build`.
+recursive-include neuromem/ui/web *

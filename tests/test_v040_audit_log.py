@@ -32,7 +32,9 @@ class TestRetrievalLogDisabled:
         log = RetrievalLog()
         for _ in range(100):
             r = log.begin(user_id="u1", query="q", task_type="chat", k=5)
-            log.add_stage(r, RetrievalStage(name="vector_search", elapsed_ms=1.0, candidate_count=10))
+            log.add_stage(
+                r, RetrievalStage(name="vector_search", elapsed_ms=1.0, candidate_count=10)
+            )
             log.finish(r, [])
         assert log.list() == []
 
@@ -97,6 +99,7 @@ class TestRetrievalLogEnabled:
 
     def test_thread_safety_basic(self):
         """Concurrent writers should not corrupt the buffer."""
+
         def worker(n: int) -> None:
             for i in range(n):
                 r = self.log.begin(user_id=f"t{i}", query="q", task_type="chat", k=1)

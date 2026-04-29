@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuromem-sdk"
-version = "0.4.1"
+version = "0.4.2"
 description = "Brain-Faithful Multimodal Memory SDK for AI Agents"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -28,6 +28,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.24.0",
     "pyyaml>=6.0",
+    "pydantic>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -63,6 +64,9 @@ ui = [
     "fastapi>=0.110.0",
     "uvicorn>=0.27.0",
     "python-multipart>=0.0.9",
+    "questionary>=2.0.0",
+    "sqlalchemy>=2.0.0",
+    "bcrypt>=4.0.0",
 ]
 ingest = [
     "docling>=2.0.0",
@@ -152,6 +156,8 @@ Repository = "https://github.com/Vk-thug/neuromem-sdk"
 Issues = "https://github.com/Vk-thug/neuromem-sdk/issues"
 
 [project.scripts]
+neuromem = "neuromem.cli:main"
+# Deprecated aliases — removed in v0.5.0. Use `neuromem ui` and `neuromem mcp`.
 neuromem-mcp = "neuromem.mcp.__main__:main"
 neuromem-ui = "neuromem.ui.cli:main"
 
@@ -159,6 +165,10 @@ neuromem-ui = "neuromem.ui.cli:main"
 where = ["."]
 include = ["neuromem*"]
 exclude = ["tests*", "examples*"]
+
+[tool.setuptools.package-data]
+# Ship the built SPA inside the wheel.
+"neuromem.ui" = ["web/**/*", "web/**/**/*"]
 
 [tool.black]
 line-length = 100

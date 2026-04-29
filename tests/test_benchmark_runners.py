@@ -17,7 +17,6 @@ from benchmarks.evaluators.metrics import (
     recall_fraction_at_k,
 )
 
-
 # ── Retrieval Metrics ──
 
 
@@ -135,6 +134,7 @@ class TestLongMemEvalLoader:
             HaystackSession,
             LongMemEvalEntry,
         )
+
         assert len(QUESTION_TYPES) == 6
         # Verify frozen dataclass
         s = HaystackSession(session_id="s1", date="2023-01-01", turns=())
@@ -158,6 +158,7 @@ class TestConvoMemLoader:
             ConvoMemEntry,
             ConvoMemMessage,
         )
+
         assert len(CATEGORIES) == 6
         msg = ConvoMemMessage(speaker="user", text="hello")
         assert msg.speaker == "user"
@@ -177,6 +178,7 @@ class TestMemBenchLoader:
             MemBenchQA,
             MemBenchTurn,
         )
+
         assert len(TASK_FILES) == 11
         turn = MemBenchTurn(
             user_text="hi",
@@ -196,6 +198,7 @@ class TestMemBenchLoader:
 def _chromadb_available() -> bool:
     try:
         import chromadb  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -251,33 +254,31 @@ class MockAdapter:
     def setup(self, config: dict) -> None:
         pass
 
-    def add_memory(
-        self, user_id: str, content: str, metadata: dict | None = None
-    ) -> str:
+    def add_memory(self, user_id: str, content: str, metadata: dict | None = None) -> str:
         import uuid
 
         mid = str(uuid.uuid4())
         self._memories.setdefault(user_id, []).append((mid, content, metadata or {}))
         return mid
 
-    def search(
-        self, user_id: str, query: str, k: int = 5
-    ) -> list[SearchResult]:
+    def search(self, user_id: str, query: str, k: int = 5) -> list[SearchResult]:
         """Return all stored memories as search results (simple substring match)."""
         memories = self._memories.get(user_id, [])
         results = []
         query_lower = query.lower()
         for mid, content, meta in memories:
             # Simple relevance: count query word overlap
-            score = sum(
-                1 for w in query_lower.split() if w in content.lower()
-            ) / max(len(query_lower.split()), 1)
-            results.append(SearchResult(
-                content=content,
-                score=score,
-                memory_id=mid,
-                metadata=meta,
-            ))
+            score = sum(1 for w in query_lower.split() if w in content.lower()) / max(
+                len(query_lower.split()), 1
+            )
+            results.append(
+                SearchResult(
+                    content=content,
+                    score=score,
+                    memory_id=mid,
+                    metadata=meta,
+                )
+            )
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:k]
 
@@ -340,14 +341,10 @@ class TestConvoMemRunner:
         from benchmarks.runners.convomem_runner import _compute_recall
 
         # All evidence found
-        assert _compute_recall(
-            ("hello world",), ["I said hello world today"]
-        ) == 1.0
+        assert _compute_recall(("hello world",), ["I said hello world today"]) == 1.0
 
         # No evidence found
-        assert _compute_recall(
-            ("hello world",), ["goodbye everyone"]
-        ) == 0.0
+        assert _compute_recall(("hello world",), ["goodbye everyone"]) == 0.0
 
         # Empty evidence
         assert _compute_recall((), ["anything"]) == 1.0
@@ -399,9 +396,7 @@ class TestMemBenchRunner:
             "What position does someone who has rock climbing as a hobby hold?"
         )
         extracted = _extract_real_question(q)
-        assert extracted == (
-            "What position does someone who has rock climbing as a hobby hold?"
-        )
+        assert extracted == ("What position does someone who has rock climbing as a hobby hold?")
 
     def test_extract_real_question_wait_minute_marker(self) -> None:
         """'wait a minute, what I wanted to ask is,' — bare marker + connective."""
@@ -414,9 +409,7 @@ class TestMemBenchRunner:
             "What's the name of the person who has a hobby of model making?"
         )
         extracted = _extract_real_question(q)
-        assert extracted == (
-            "What's the name of the person who has a hobby of model making?"
-        )
+        assert extracted == ("What's the name of the person who has a hobby of model making?")
 
     def test_extract_real_question_oops_actually_was(self) -> None:
         """'Oops, actually what I wanted to ask was:' — leading colon cleanup."""

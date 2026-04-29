@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import clsx from 'clsx'
 import Workspace from './routes/Workspace'
 import Graph2D from './routes/Graph2D'
@@ -7,6 +7,8 @@ import RetrievalRuns from './routes/RetrievalRuns'
 import Observations from './routes/Observations'
 import BrainTelemetry from './routes/BrainTelemetry'
 import MCPSetup from './routes/MCPSetup'
+import Onboarding, { useSetupGate } from './routes/Onboarding'
+import Settings from './routes/Settings'
 
 const NAV = [
   // Knowledge work — the Obsidian-like three-pane workspace.
@@ -21,15 +23,32 @@ const NAV = [
   { to: '/observations', label: 'Observations', group: 'ops' },
   { to: '/brain', label: 'Brain telemetry', group: 'ops' },
   { to: '/mcp', label: 'MCP setup', group: 'ops' },
+
+  // System — config & wizard.
+  { to: '/settings', label: 'Settings', group: 'sys' },
 ]
 
 const GROUP_LABEL: Record<string, string> = {
   work: 'Knowledge',
   view: 'Visualise',
   ops: 'Operate',
+  sys: 'System',
 }
 
 export default function App() {
+  // Onboarding gate — redirects to /onboarding when setup_complete=false.
+  useSetupGate()
+  const location = useLocation()
+
+  // The wizard takes the whole viewport — skip the nav chrome.
+  if (location.pathname === '/onboarding') {
+    return (
+      <Routes>
+        <Route path="/onboarding" element={<Onboarding />} />
+      </Routes>
+    )
+  }
+
   const grouped = NAV.reduce<Record<string, typeof NAV>>((acc, n) => {
     ;(acc[n.group] ??= []).push(n)
     return acc
@@ -40,7 +59,7 @@ export default function App() {
       <aside className="w-56 shrink-0 border-r border-zinc-800 bg-zinc-950 px-4 py-6">
         <div className="mb-6 select-none">
           <div className="text-lg font-bold tracking-tight text-zinc-100">NeuroMem</div>
-          <div className="text-xs text-zinc-500">v0.4.0 · local</div>
+          <div className="text-xs text-zinc-500">v0.4.2 · local</div>
         </div>
         <nav className="flex flex-col gap-3">
           {Object.entries(grouped).map(([group, items]) => (
@@ -78,6 +97,8 @@ export default function App() {
           <Route path="/observations" element={<Observations />} />
           <Route path="/brain" element={<BrainTelemetry />} />
           <Route path="/mcp" element={<MCPSetup />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/onboarding" element={<Onboarding />} />
         </Routes>
       </main>
     </div>

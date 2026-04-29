@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-04-29
+
+Onboarding + service-mode release. Closes the gap between `pip install` and "running" for non-technical users, and ships multi-user/API-key auth as a first-class mode.
+
+### Added
+
+- **Unified `neuromem` CLI** — `neuromem.cli` package with subcommands `init`, `ui`, `mcp`, `config show|edit|validate`, `doctor`. Console script `neuromem = "neuromem.cli:main"` added to `pyproject.toml`. The legacy `neuromem-ui` and `neuromem-mcp` console scripts remain as deprecated aliases (removed in v0.5).
+- **`neuromem init` wizard** — interactive 5-question terminal flow via `questionary` (`Mode → Embedding → Storage → Auth → Port`). Writes `neuromem.yaml` and a `.env` containing any secrets (OpenAI key, `NEUROMEM_AUTH_SECRET`). `--ui` flag writes a bootstrap yaml and opens `/onboarding` in the browser.
+- **`neuromem doctor`** — TCP/connect check for Ollama (`localhost:11434`), Qdrant (`localhost:6333`), and Postgres (using configured URL).
+- **`neuromem.config_schema`** — Pydantic v2 schema mirroring `neuromem.yaml`. New top-level fields: `mode: single|service`, `setup_complete: bool`, `auth: { type, secret_env }`, `ui: { host, port }`. `ConfigService` provides `load`, `save`, `update` (deep merge), `validate_full` (cross-field invariants).
+- **`/api/config` routes** (`neuromem.ui.api.config_routes`) — `GET /api/config`, `PUT /api/config`, `POST /api/config/validate`, `POST /api/config/test-connection` (Ollama / Qdrant / Postgres). `PUT` returns a `restart_required` list flagging fields that take effect only after process restart.
+- **`/onboarding` SPA route** — 5-step wizard with live `neuromem.yaml` preview pane, "test connection" buttons, and auto-redirect from `/` when `setup_complete=false`.
+- **`/settings` SPA route** — editable form for every config field, JSON diff preview before save, restart-required badges per field.
+- **Pluggable user store** (`neuromem.user_store`) — `UserStore` Protocol + `InMemoryUserStore` (default, preserves v0.4.1 behavior) + `SqlUserStore` (sqlite/postgres via SQLAlchemy 2.0). `UserManager.configure(backend)` swaps at boot. Adds `UserManager.create_with_api_key(...)` returning `(User, plaintext_api_key)`; key is bcrypt-hashed once and unrecoverable.
+- **API-key auth middleware** (`neuromem.ui.api.auth.APIKeyAuthMiddleware`) — `X-API-Key` header → `UserManager.get_by_api_key(...)` → `request.state.user`. Mounted only when `mode=service`. Exempts `/api/health`, `/api/config*`, and a soft-exempt `POST /api/users` for first-user bootstrap.
+- **`/api/users` routes** — `POST` (create + return one-time API key; first call works without auth, all subsequent require a key), `GET /me`, `GET` (list), `DELETE /{user_id}`.
+- **SPA bundle in wheel** — `MANIFEST.in` and `[tool.setuptools.package-data]` include `neuromem/ui/web/**`. CI workflow builds the SPA with Node 20 before `python -m build`.
+
+### Changed
+
+- **`pyproject.toml` deps** — `pydantic>=2.0.0` is now a core dependency (was only required by the `mcp` extra). The `[ui]` extra now also pulls `questionary>=2.0`, `sqlalchemy>=2.0`, `bcrypt>=4.0`.
+- **`neuromem.user.UserManager`** — methods now route through the active `UserStore` backend; classmethod surface unchanged. `User` gains an `api_key_hash` attribute (`None` outside service mode).
+- **Version** — `0.4.1` → `0.4.2` in `pyproject.toml` and `neuromem/__init__.py`.
+
+### Tests
+
+- `tests/test_v042_config_schema.py` — round-trip, async alias, cross-field validation, deep merge, default fallback.
+- `tests/test_v042_user_store.py` — classmethod compat, API-key flow, SQL persistence, bcrypt invariants.
+- `tests/test_v042_config_routes.py` — GET/PUT, restart_required diff, invalid mode rejection.
+- `tests/test_v042_service_auth.py` — full middleware + bootstrap-first-user flow.
+- `tests/test_v042_init_wizard.py` — wizard answers → expected yaml.
+- 24 new tests; 429 total passing, 0 failures.
+
 ## [0.4.1] - 2026-04-28
 
 Developer-experience release. No new features — every change reduces the friction of getting v0.4.0 working on a fresh machine. Targets the four setup paper-cuts surfaced during v0.4.0 onboarding: OpenAI-only LLM calls, embedding/vector-size mismatch in the default yaml, async writes invisible to follow-up reads, and `print()`-based error reporting.

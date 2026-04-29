@@ -402,10 +402,13 @@ class TestBrainSystem:
     def test_on_retrieve_returns_reranked(self):
         backend = InMemoryBackend()
         brain = BrainSystem(user_id="u1", backend=backend)
-        items = [(
-            _make_item(memory_id=f"m{i}", metadata={"maturation_ready": True}),
-            0.5 + i * 0.1,
-        ) for i in range(3)]
+        items = [
+            (
+                _make_item(memory_id=f"m{i}", metadata={"maturation_ready": True}),
+                0.5 + i * 0.1,
+            )
+            for i in range(3)
+        ]
         result = brain.on_retrieve(items, task_type="chat")
         assert len(result) == 3
         # Should be sorted by score descending

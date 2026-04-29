@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Plate, usePlateEditor } from 'platejs/react'
 import { MarkdownPlugin } from '@platejs/markdown'
-import { MentionPlugin } from '@platejs/mention'
+// Plate.js v52 renamed the plugin exports to add a `Base` prefix
+// (BoldPlugin → BaseBoldPlugin, MentionPlugin → BaseMentionPlugin, …).
+// Source: https://platejs.org migration notes for the 45 → 52 line.
+import { BaseMentionPlugin } from '@platejs/mention'
 import {
-  BoldPlugin,
-  ItalicPlugin,
-  CodePlugin,
-  H1Plugin,
-  H2Plugin,
-  H3Plugin,
-  BlockquotePlugin,
+  BaseBoldPlugin,
+  BaseItalicPlugin,
+  BaseCodePlugin,
+  BaseH1Plugin,
+  BaseH2Plugin,
+  BaseH3Plugin,
+  BaseBlockquotePlugin,
 } from '@platejs/basic-nodes'
 import type { MemoryRecord } from '@/lib/api'
 import { api } from '@/lib/api'
@@ -38,15 +41,15 @@ export default function PlateEditor({ memory, onSaved }: Props) {
   const initialMarkdown = memory.content
   const editor = usePlateEditor({
     plugins: [
-      H1Plugin,
-      H2Plugin,
-      H3Plugin,
-      BlockquotePlugin,
-      BoldPlugin,
-      ItalicPlugin,
-      CodePlugin,
+      BaseH1Plugin,
+      BaseH2Plugin,
+      BaseH3Plugin,
+      BaseBlockquotePlugin,
+      BaseBoldPlugin,
+      BaseItalicPlugin,
+      BaseCodePlugin,
       MarkdownPlugin,
-      MentionPlugin.configure({
+      BaseMentionPlugin.configure({
         options: {
           // Mention trigger character — Obsidian uses [[]], we also
           // accept @ as a quick alternative.
@@ -122,7 +125,12 @@ export default function PlateEditor({ memory, onSaved }: Props) {
           if (dirty) void doSave()
         }}
       >
-        <Plate editor={editor} onChange={() => setDirty(true)} />
+        <Plate editor={editor} onChange={() => setDirty(true)}>
+          {/* Plate.js v52 requires `children` on <Plate>; the editable
+              surface comes from the editor instance, so an empty fragment
+              is the canonical "render the default editable" placeholder. */}
+          <></>
+        </Plate>
       </div>
     </div>
   )

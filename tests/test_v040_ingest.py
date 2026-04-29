@@ -31,7 +31,6 @@ from neuromem.core.ingest import (
     supported_suffixes,
 )
 
-
 # ---------------------------------------------------------------------------
 # Parser registry
 # ---------------------------------------------------------------------------
@@ -66,9 +65,7 @@ class TestParserRegistry:
             name = "fake"
 
             def parse(self, path, *, source_id):
-                yield ParsedChunk(
-                    content="x", source_id=source_id, source_path=path
-                )
+                yield ParsedChunk(content="x", source_id=source_id, source_path=path)
 
         register_parser("fake", FakeParser)
         parser = parser_for_name("fake")
@@ -135,9 +132,7 @@ class TestIngestLog:
     def test_disabled_by_default(self) -> None:
         log = IngestLog()
         assert log.enabled is False
-        assert log.begin(
-            user_id="u", source_path="/x", source_id="s", parser_name="md"
-        ) is None
+        assert log.begin(user_id="u", source_path="/x", source_id="s", parser_name="md") is None
 
     def test_lifecycle(self) -> None:
         log = IngestLog(capacity=10)
@@ -169,7 +164,7 @@ class TestIngestLog:
         job = log.begin(user_id="u", source_path="/x", source_id="s", parser_name="md")
         log.add_stage(job, IngestStage(name="parse_chunk", elapsed_ms=0, chunk_index=0))
         log.finish(job)
-        assert seen[0] == "running"   # begin
+        assert seen[0] == "running"  # begin
         assert seen[-1] == "completed"
         unsubscribe()
 
@@ -252,9 +247,7 @@ class TestKnowledgeBaseIngester:
         assert job.written_chunks == 2
         assert job.parsed_chunks == 2
 
-    def test_root_node_persisted_and_links_present(
-        self, ingester_mock, md_file: Path
-    ) -> None:
+    def test_root_node_persisted_and_links_present(self, ingester_mock, md_file: Path) -> None:
         ingester_mock.ingest_file(str(md_file))
         backend = ingester_mock.controller.episodic.backend
         graph = ingester_mock.controller.graph

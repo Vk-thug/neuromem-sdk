@@ -38,9 +38,9 @@ def test_mcp_manifest_shape(manifest_path: Path) -> None:
     assert "neuromem" in data["mcpServers"], f"no neuromem entry in {manifest_path}"
     server = data["mcpServers"]["neuromem"]
     assert server.get("command") == "python", f"unexpected command in {manifest_path}"
-    assert "neuromem.mcp" in (server.get("args") or []), (
-        f"command does not invoke neuromem.mcp in {manifest_path}"
-    )
+    assert "neuromem.mcp" in (
+        server.get("args") or []
+    ), f"command does not invoke neuromem.mcp in {manifest_path}"
 
 
 def test_cursor_plugin_readme_exists() -> None:

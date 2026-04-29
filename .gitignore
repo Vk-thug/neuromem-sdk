@@ -89,3 +89,12 @@ reference/
 data/
 benchmarks/results/
 benchmarks/datasets/.cache/
+
+# v0.4.2: SPA build output. CI builds this before `python -m build`;
+# locally, run `cd ui && npm run build`. Keep the directory but ignore
+# the generated bundle.
+neuromem/ui/web/assets/
+neuromem/ui/web/index.html
+ui/node_modules/
+ui/dist/
+ui/tsconfig.tsbuildinfo

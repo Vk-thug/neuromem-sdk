@@ -64,32 +64,56 @@ Memories are connected through a **knowledge graph** with entity extraction, ena
 
 ## Quick Start
 
-### Install
+### Install (v0.4.2 — one command for non-technical users)
 
 ```bash
-pip install neuromem-sdk
+pipx install 'neuromem-sdk[ui]'      # Or: pip install 'neuromem-sdk[ui]'
+neuromem init                        # 5-question wizard → writes neuromem.yaml + .env
+                                     # then auto-launches the UI
 ```
 
-With optional integrations:
+The wizard asks: mode (single-user vs service/multi-user), embedding model (Ollama or OpenAI), vector store (Qdrant / Postgres / in-memory), port, and (for service mode) Postgres URL. Pick `--ui` to skip the terminal and finish setup in the browser at `http://127.0.0.1:7777/onboarding`.
 
 ```bash
-pip install 'neuromem-sdk[ui]'               # Local Workspace UI (FastAPI + uvicorn)
+neuromem init --ui                   # browser-based wizard
+neuromem ui                          # launch UI (after init)
+neuromem doctor                      # check Ollama / Qdrant / Postgres reachability
+neuromem config edit                 # open $EDITOR with validation on save
+neuromem config show                 # print resolved config
+```
+
+### Install variants
+
+```bash
+pip install neuromem-sdk                     # core SDK only
+pip install 'neuromem-sdk[ui]'               # UI + wizard + service mode (FastAPI + SQLAlchemy + bcrypt)
 pip install 'neuromem-sdk[ingest]'           # Docling — PDF/DOCX/XLSX/PPTX/HTML/image ingestion
 pip install 'neuromem-sdk[mcp]'              # MCP server
-pip install 'neuromem-sdk[qdrant]'           # Qdrant backend (recommended; v0.4.0 default)
+pip install 'neuromem-sdk[qdrant]'           # Qdrant backend (recommended; v0.4.0+ default)
+pip install 'neuromem-sdk[postgres]'         # PostgreSQL backend
 pip install 'neuromem-sdk[langchain]'        # LangChain adapter
 pip install 'neuromem-sdk[langgraph]'        # LangGraph adapter
 pip install 'neuromem-sdk[crewai]'           # CrewAI adapter
-pip install 'neuromem-sdk[postgres]'         # PostgreSQL backend
 pip install 'neuromem-sdk[all-no-dspy]'      # Everything except dspy
 ```
 
-**Recommended v0.4.1 install** (UI + KB ingest + MCP + Qdrant):
+**Recommended v0.4.2 install** (UI + KB ingest + MCP + Qdrant):
 
 ```bash
 pip install 'neuromem-sdk[mcp,ui,qdrant,ingest]'
 docker run -d -p 6333:6333 qdrant/qdrant     # optional — Qdrant gracefully falls back to in-memory
-neuromem-ui                                  # opens http://127.0.0.1:7777
+neuromem init                                # writes config + opens http://127.0.0.1:7777
+```
+
+### Service mode (multi-user, API-key auth)
+
+`neuromem init` + select **"Service / multi-user"** when prompted. The wizard generates `NEUROMEM_AUTH_SECRET`, switches the user store to `SqlUserStore`, and enables the `X-API-Key` middleware. Mint the first user from the UI or:
+
+```bash
+curl -X POST http://127.0.0.1:7777/api/users \
+  -H 'Content-Type: application/json' \
+  -d '{"external_id": "admin@local"}'
+# Returns {"api_key": "nm_...", "warning": "Store this key now — it cannot be retrieved later."}
 ```
 
 **Zero-key setup with local Ollama (v0.4.1 default):**
