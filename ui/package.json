@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build --outDir ../neuromem/ui/web --emptyOutDir",
+    "build": "vite build --outDir ../neuromem/ui/web --emptyOutDir",
+    "build:strict": "tsc -b && vite build --outDir ../neuromem/ui/web --emptyOutDir",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
