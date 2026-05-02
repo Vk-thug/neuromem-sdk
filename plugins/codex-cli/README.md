@@ -19,14 +19,22 @@ cp -r plugins/codex-cli ~/.agents/plugins/neuromem
 codex plugin install neuromem
 ```
 
+## Quickstart (v0.4.7+)
+
+```bash
+pip install 'neuromem-sdk[ui,mcp]'
+neuromem init                 # browser opens, finishes setup
+neuromem ui                   # serves UI + MCP at http://127.0.0.1:7777
+```
+
+The skill calls the in-process MCP at `http://127.0.0.1:7777/mcp/`.
+Codex picks up the tools as soon as `neuromem ui` is running.
+
 ## Prerequisites
 
-- Python 3.10+ with `neuromem-sdk[mcp]` installed:
-  ```bash
-  pip install neuromem-sdk[mcp]
-  ```
-- A `neuromem.yaml` config file in your project root
-- `OPENAI_API_KEY` environment variable set
+- Python 3.10+ with `neuromem-sdk[ui,mcp]` installed
+- A `neuromem.yaml` config file (created by `neuromem init`)
+- `OPENAI_API_KEY` environment variable (only if you switched to OpenAI in the wizard)
 
 ## Usage
 

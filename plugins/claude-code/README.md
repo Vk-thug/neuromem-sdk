@@ -2,7 +2,18 @@
 
 Brain-inspired persistent memory for your coding agent.
 
-## Installation
+## Quickstart (v0.4.7+)
+
+```bash
+pip install neuromem-sdk[ui,mcp]    # one install
+neuromem init                       # browser opens, finishes setup
+neuromem ui                         # serves UI + MCP at http://127.0.0.1:7777
+```
+
+The plugin's `.mcp.json` already points at `http://127.0.0.1:7777/mcp/`.
+As soon as `neuromem ui` is running, Claude Code picks up the tools.
+
+## Installation (the plugin itself)
 
 ### From source (development)
 ```bash
@@ -15,21 +26,11 @@ claude plugin install .
 claude plugin install neuromem
 ```
 
-## Setup
-
-During installation, you'll be prompted for:
-1. **Config path** — Path to your `neuromem.yaml` (default: `./neuromem.yaml`)
-2. **User ID** — Your unique identifier for memory scoping
-3. **OpenAI API key** — For embeddings and LLM consolidation
-
 ## Prerequisites
 
-- Python 3.10+ with `neuromem-sdk[mcp]` installed:
-  ```bash
-  pip install neuromem-sdk[mcp]
-  ```
-- A `neuromem.yaml` config file (see [examples/neuromem.yaml](../../examples/neuromem.yaml))
-- OpenAI API key (for embeddings)
+- Python 3.10+ with the `[ui,mcp]` extras (covers FastAPI + the MCP SDK)
+- A running `neuromem ui` process — see Quickstart above
+- Optional: OpenAI API key (only if you switch the wizard's embedding from Ollama to OpenAI)
 
 ## Commands
 
@@ -62,7 +63,27 @@ Use the **memory-assistant** agent for:
 Claude Code ──> Plugin Commands (/remember, /recall, ...)
              ──> Skill (auto-injects context)
              ──> Agent (deep operations)
-             ──> MCP Server (python -m neuromem.mcp)
+             ──> MCP HTTP /mcp/ (mounted in-process by `neuromem ui`)
                   ──> NeuroMem SDK
-                       ──> Storage Backend (Qdrant/Postgres/SQLite/Memory)
+                       ──> Storage Backend (Qdrant + SQLite by default)
+```
+
+## Standalone MCP fallback
+
+If you can't run `neuromem ui` (Docker, headless agent host, CI), swap
+the in-process URL in `.mcp.json` for the stdio command:
+
+```json
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "python",
+      "args": ["-m", "neuromem.mcp"],
+      "env": {
+        "NEUROMEM_CONFIG": "./neuromem.yaml",
+        "NEUROMEM_USER_ID": "<your-uuid-from-yaml>"
+      }
+    }
+  }
+}
 ```

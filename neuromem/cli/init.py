@@ -78,6 +78,7 @@ def _prompt_terminal() -> Dict[str, Any]:
                 "value": "qdrant",
             },
             {"name": "In-memory (no persistence, restart wipes everything)", "value": "memory"},
+            {"name": "SQLite (local file, no server)", "value": "sqlite"},
             {"name": "Postgres + pgvector", "value": "postgres"},
         ],
         default="qdrant",
@@ -88,6 +89,13 @@ def _prompt_terminal() -> Dict[str, Any]:
         postgres_url = questionary.text(
             "Postgres URL (for users + memory):",
             default="postgresql://neuromem:neuromem@localhost:5432/neuromem",
+        ).ask()
+
+    sqlite_url = ""
+    if storage == "sqlite":
+        sqlite_url = questionary.text(
+            "SQLite URL (auto-creates parent dir):",
+            default="sqlite:///~/.neuromem/memory.db",
         ).ask()
 
     port = questionary.text(
@@ -102,12 +110,15 @@ def _prompt_terminal() -> Dict[str, Any]:
         "openai_key": openai_key,
         "storage": storage,
         "postgres_url": postgres_url,
+        "sqlite_url": sqlite_url,
         "port": int(port),
     }
 
 
 def _build_yaml(answers: Dict[str, Any]) -> Dict[str, Any]:
     """Translate wizard answers into the neuromem.yaml document."""
+    import uuid
+
     if answers["embedding_provider"] == "openai":
         embedding = "text-embedding-3-large"
         vector_size = 3072
@@ -136,6 +147,11 @@ def _build_yaml(answers: Dict[str, Any]) -> Dict[str, Any]:
             "vector_store": {"type": "postgres", "config": {"url": answers["postgres_url"]}},
             "database": {"type": "postgres", "url": answers["postgres_url"]},
         }
+    elif answers["storage"] == "sqlite":
+        storage_block = {
+            "vector_store": {"type": "sqlite", "config": {"url": answers["sqlite_url"]}},
+            "database": {"type": "sqlite", "url": answers["sqlite_url"]},
+        }
     else:
         storage_block = {
             "vector_store": {"type": "memory"},
@@ -150,12 +166,18 @@ def _build_yaml(answers: Dict[str, Any]) -> Dict[str, Any]:
     else:
         auth_block = {"type": "none"}
 
+    user_block: Dict[str, Any] = {}
+    if answers["mode"] == "single":
+        user_block = {"id": answers.get("user_id") or str(uuid.uuid4())}
+
     return {
         "neuromem": {
             "mode": answers["mode"],
             "setup_complete": True,
             "auth": auth_block,
             "ui": {"port": answers["port"]},
+            "user": user_block,
+            "mcp": {"enabled": True, "mount_path": "/mcp", "expose_as": "http"},
             "model": {"embedding": embedding, "consolidation_llm": consolidation_llm},
             "storage": storage_block,
             "memory": {
@@ -172,6 +194,8 @@ def _build_yaml(answers: Dict[str, Any]) -> Dict[str, Any]:
 
 def _write_bootstrap_yaml(path: Path) -> None:
     """Write a minimal yaml that boots the UI for the browser wizard."""
+    import uuid
+
     import yaml
 
     bootstrap = {
@@ -180,6 +204,8 @@ def _write_bootstrap_yaml(path: Path) -> None:
             "setup_complete": False,
             "auth": {"type": "none"},
             "ui": {"port": 7777},
+            "user": {"id": str(uuid.uuid4())},
+            "mcp": {"enabled": True, "mount_path": "/mcp", "expose_as": "http"},
             "model": {
                 "embedding": "nomic-embed-text",
                 "consolidation_llm": "ollama/qwen2.5-coder:7b",

@@ -105,7 +105,11 @@ class TestHealth:
         assert r.status_code == 200
         body = r.json()
         assert body["status"] == "ok"
-        assert body["version"] == "0.4.0"
+        # Version is now sourced from neuromem.__version__ (wheel metadata).
+        # We don't pin to a specific string so this test survives bumps.
+        from neuromem import __version__ as nm_version
+
+        assert body["version"] == nm_version
         assert body["graph"]["nodes"] == 3
         assert body["audit"]["retrieval_log_enabled"] is True
 

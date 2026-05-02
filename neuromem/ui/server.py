@@ -127,11 +127,67 @@ def _serialize_memory_for_graph(item: Any) -> Dict[str, Any]:
 def create_app(memory: "NeuroMem") -> FastAPI:
     """Construct the FastAPI app bound to a live ``NeuroMem`` instance."""
 
-    app = FastAPI(
-        title="NeuroMem UI",
-        version="0.4.0",
-        description="Local brain-inspired memory dashboard.",
-    )
+    # Pre-load config so the MCP sub-app (if enabled) can be built BEFORE
+    # FastAPI construction — its session manager's task group lives inside
+    # the parent app's lifespan, so we have to know about it at that
+    # moment.  Bug-fix v0.4.7: prior code mounted MCP after app creation
+    # but never ran its lifespan, producing 500 "Task group is not
+    # initialized" on every request.
+    _mcp_app = None
+    _mcp_session_manager = None
+    _mcp_mount_path = "/mcp"
+    try:
+        from neuromem.config_schema import ConfigService as _CS
+        import os as _os_pre
+
+        _pre_cfg_path = _os_pre.environ.get("NEUROMEM_CONFIG", "neuromem.yaml")
+        _pre_cfg = _CS(_pre_cfg_path).load_or_default()
+    except Exception:
+        _pre_cfg = None
+
+    if _pre_cfg is not None and getattr(_pre_cfg, "mcp", None) and _pre_cfg.mcp.enabled:
+        try:
+            from neuromem.mcp.server import create_server as _create_mcp_server
+
+            _mcp_pre = _create_mcp_server()
+            if _pre_cfg.mcp.expose_as == "sse":
+                _mcp_pre.settings.sse_path = "/"
+                _mcp_app = _mcp_pre.sse_app()
+            else:
+                _mcp_pre.settings.streamable_http_path = "/"
+                _mcp_app = _mcp_pre.streamable_http_app()
+            _mcp_session_manager = _mcp_pre.session_manager
+            _mcp_mount_path = _pre_cfg.mcp.mount_path
+        except ImportError as _exc:
+            logger.warning(
+                "mcp.enabled=true but [mcp] extra not installed; skipping mount: %s", _exc
+            )
+        except Exception as _exc:  # pragma: no cover - defensive
+            logger.warning("MCP pre-build failed: %s", _exc)
+
+    if _mcp_session_manager is not None:
+        from contextlib import asynccontextmanager as _acm
+
+        @_acm
+        async def _combined_lifespan(_app: FastAPI):
+            # Run the FastMCP session manager for the lifetime of the
+            # parent app. This is what lets every mounted MCP request
+            # reuse the same task group / event loop.
+            async with _mcp_session_manager.run():
+                yield
+
+        app = FastAPI(
+            title="NeuroMem UI",
+            version="0.4.7",
+            description="Local brain-inspired memory dashboard.",
+            lifespan=_combined_lifespan,
+        )
+    else:
+        app = FastAPI(
+            title="NeuroMem UI",
+            version="0.4.7",
+            description="Local brain-inspired memory dashboard.",
+        )
 
     # CORS: vite dev server runs on 5173; production build is served from
     # the same origin. Both whitelisted.
@@ -184,6 +240,23 @@ def create_app(memory: "NeuroMem") -> FastAPI:
         app.include_router(build_users_router())
         logger.info("service mode active: API-key auth enabled, users router mounted")
 
+    # In-process MCP mount (v0.4.7). The sub-app + session manager were
+    # pre-built above so the lifespan could be wired in at FastAPI
+    # construction time. Here we just attach the mount and a courtesy
+    # ``/mcp`` → ``/mcp/`` redirect route so URLs without a trailing slash
+    # don't 404 (Starlette's Mount won't match a bare prefix).
+    if _mcp_app is not None:
+        from fastapi.responses import RedirectResponse as _Redirect
+
+        _mp = _mcp_mount_path.rstrip("/")
+
+        @app.get(_mp, include_in_schema=False)
+        async def _mcp_slash_redirect():
+            return _Redirect(url=f"{_mp}/", status_code=307)
+
+        app.mount(_mp, _mcp_app)
+        logger.info("MCP mounted in-process at %s/", _mp)
+
     # KB ingester — lazy-init on first upload (heavy Docling import).
     _kb_ingester = {"instance": None}
 
@@ -198,11 +271,13 @@ def create_app(memory: "NeuroMem") -> FastAPI:
 
     @app.get("/api/health")
     def health() -> Dict[str, Any]:
+        from neuromem import __version__ as _nm_version
+
         controller = memory.controller
         graph = controller.graph
         return {
             "status": "ok",
-            "version": "0.4.0",
+            "version": _nm_version,
             "user_id": memory.user_id,
             "graph": {
                 "nodes": graph.node_count,
@@ -242,27 +317,63 @@ def create_app(memory: "NeuroMem") -> FastAPI:
 
     @app.delete("/api/memories/{memory_id}")
     def delete_memory(memory_id: str) -> Dict[str, str]:
-        memory.forget(memory_id)
+        try:
+            memory.forget(memory_id)
+        except (ValueError, KeyError) as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
         return {"status": "deleted", "id": memory_id}
 
     @app.post("/api/memories")
     def add_memory(payload: Dict[str, Any]) -> Dict[str, Any]:
         """Explicit add — wraps NeuroMem.observe with a one-sided
         observation. Used by the UI's 'New memory' button.
+
+        Returns the new memory's id so the caller can immediately link,
+        edit, or delete the record without an extra LIST round-trip.
         """
-        content = (payload.get("content") or "").strip()
+        raw_content = payload.get("content")
+        if raw_content is None:
+            raise HTTPException(status_code=400, detail="content is required")
+        if not isinstance(raw_content, str):
+            raise HTTPException(
+                status_code=422,
+                detail=f"content must be a string, got {type(raw_content).__name__}",
+            )
+        content = raw_content.strip()
         if not content:
             raise HTTPException(status_code=400, detail="content is required")
         metadata = dict(payload.get("metadata") or {})
         if payload.get("belief_state") is not None:
             metadata["belief_state"] = int(payload["belief_state"])
-        memory.observe(
-            user_input=content,
-            assistant_output=payload.get("assistant_output", ""),
-            template=payload.get("template"),
-            metadata=metadata,
-        )
-        return {"status": "added"}
+
+        # observe() requires a non-empty assistant_output. The UI's
+        # "New memory" flow has nothing meaningful to fill in, so we
+        # default to a placeholder rather than 500-ing.
+        assistant_output = (payload.get("assistant_output") or "").strip() or "(observed)"
+
+        try:
+            memory.observe(
+                user_input=content,
+                assistant_output=assistant_output,
+                template=payload.get("template"),
+                metadata=metadata,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        # Best-effort id surfacing: list latest 1 by recency for this user.
+        new_id: Optional[str] = None
+        try:
+            latest = memory.list(limit=1)
+            if latest:
+                new_id = getattr(latest[0], "id", None)
+        except Exception:
+            pass
+
+        body: Dict[str, Any] = {"status": "added"}
+        if new_id:
+            body["id"] = new_id
+        return body
 
     @app.put("/api/memories/{memory_id}")
     def edit_memory(memory_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -291,7 +402,7 @@ def create_app(memory: "NeuroMem") -> FastAPI:
         # Create the new trace.
         from neuromem.utils.embeddings import get_embedding
 
-        new_id = __import__("uuid").uuid4().hex
+        new_id = str(__import__("uuid").uuid4())
         embedding_model = memory.config.model().get("embedding", "text-embedding-3-large")
         try:
             embedding = get_embedding(new_content, embedding_model)
@@ -437,19 +548,19 @@ def create_app(memory: "NeuroMem") -> FastAPI:
         runs = default_retrieval_log.list(limit=limit)
         return {"runs": [r.to_dict() for r in runs], "count": len(runs)}
 
-    @app.get("/api/retrievals/{run_id}")
-    def get_retrieval(run_id: str) -> Dict[str, Any]:
-        run = default_retrieval_log.get(run_id)
-        if run is None:
-            raise HTTPException(status_code=404, detail="run not found")
-        return run.to_dict()
-
     @app.get("/api/retrievals/stream")
     async def stream_retrievals() -> StreamingResponse:
         return StreamingResponse(
             _sse_retrieval_stream(),
             media_type="text/event-stream",
         )
+
+    @app.get("/api/retrievals/{run_id}")
+    def get_retrieval(run_id: str) -> Dict[str, Any]:
+        run = default_retrieval_log.get(run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="run not found")
+        return run.to_dict()
 
     # ----- observation feed ---------------------------------------------
 
@@ -574,6 +685,14 @@ def create_app(memory: "NeuroMem") -> FastAPI:
 
     @app.get("/api/mcp-config")
     def mcp_config() -> Dict[str, Any]:
+        """Ready-to-paste MCP config blobs for every supported client.
+
+        v0.4.7: in-process MCP is the default, so we surface the local
+        URL (read from the running yaml) for every client. Falls back to
+        stdio command shape only for clients that demand a subprocess.
+        Public-tunnel blobs (cloudflared) override the local URLs when
+        ``~/.neuromem/mcp-public.json`` exists.
+        """
         public_path = Path.home() / ".neuromem" / "mcp-public.json"
         if public_path.exists():
             return {
@@ -581,25 +700,100 @@ def create_app(memory: "NeuroMem") -> FastAPI:
                 "public_url_path": str(public_path),
                 "blobs": json.loads(public_path.read_text()),
             }
+
+        # Read live yaml so the URL reflects the actual port + mount path.
+        try:
+            from neuromem.config_schema import ConfigService as _CS
+            import os as _os_mc
+
+            _live = _CS(_os_mc.environ.get("NEUROMEM_CONFIG", "neuromem.yaml")).load_or_default()
+            _ui = _live.ui
+            _mp = (
+                _live.mcp.mount_path
+                if getattr(_live, "mcp", None) and _live.mcp.enabled
+                else "/mcp"
+            )
+            local_url = f"http://{_ui.host}:{_ui.port}{_mp.rstrip('/')}/"
+        except Exception:
+            local_url = "http://127.0.0.1:7777/mcp/"
+
+        http_blob = {"type": "http", "url": local_url}
+        stdio_blob = {
+            "command": "python",
+            "args": ["-m", "neuromem.mcp"],
+            "transport": "stdio",
+        }
+
         return {
             "tunnel": False,
+            "local_url": local_url,
             "hint": (
-                "Run `python -m neuromem.mcp --transport http --port 7799 --public` "
-                "to expose this server to web-chat clients."
+                f"In-process MCP is live at {local_url}. "
+                "Run `neuromem ui --public` to expose it to web-chat clients via cloudflared."
             ),
             "blobs": {
-                "claude_code": {
-                    "command": "python",
-                    "args": ["-m", "neuromem.mcp"],
-                    "transport": "stdio",
-                },
+                "claude_code": http_blob,
+                "cursor": http_blob,
+                "antigravity": http_blob,
+                "gemini_cli": {"httpUrl": local_url},
+                "codex_cli": http_blob,
+                "cline": http_blob,
+                "windsurf": http_blob,
+                # Stdio fallback for hosts that can't dial localhost
+                # (Docker without host-network, agent-host CLIs).
+                "_stdio_fallback": stdio_blob,
             },
         }
 
     # ----- static SPA ---------------------------------------------------
+    # SPA catch-all (v0.4.7 fix): every non-API GET that isn't a real
+    # static asset must serve index.html so the React Router can hydrate.
+    # The default ``StaticFiles(html=True)`` only resolves index.html on
+    # directory matches — deep-links like /settings or /onboarding would
+    # otherwise 404. We mount the static dir under a sub-path and add an
+    # explicit catch-all GET that prefers a real file when one exists,
+    # else falls back to index.html.
+
+    # Favicon — return 204 if no asset, else serve from web/. Avoids the
+    # noisy `GET /favicon.{svg,ico} 404` lines on every page load.
+    from fastapi.responses import Response as _Response
+
+    @app.get("/favicon.ico", include_in_schema=False)
+    @app.get("/favicon.svg", include_in_schema=False)
+    async def _favicon():
+        for name in ("favicon.svg", "favicon.ico"):
+            candidate = WEB_DIR / name
+            if candidate.is_file():
+                from fastapi.responses import FileResponse as _FR
+
+                return _FR(candidate)
+        return _Response(status_code=204)
 
     if WEB_DIR.exists() and any(WEB_DIR.iterdir()):
-        app.mount("/", StaticFiles(directory=str(WEB_DIR), html=True), name="ui")
+        from fastapi.responses import FileResponse as _FileResponse
+
+        # Serve files at /assets/* etc directly (Vite emits hashed paths
+        # under /assets/). Mounting at "/" still works as the primary
+        # asset server; the catch-all below handles deep-link 404s.
+        app.mount(
+            "/assets",
+            StaticFiles(directory=str(WEB_DIR / "assets")),
+            name="spa-assets",
+        )
+
+        _index_html = WEB_DIR / "index.html"
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def _spa_catch_all(full_path: str):
+            # Don't shadow API or MCP — those have explicit routes
+            # registered before this catch-all, but FastAPI's matcher
+            # walks routes in order and Mount catches its prefix, so
+            # /api/* and /mcp/* never reach this handler.
+            candidate = WEB_DIR / full_path
+            if full_path and candidate.is_file():
+                return _FileResponse(candidate)
+            return _FileResponse(_index_html)
+
     else:
 
         @app.get("/")

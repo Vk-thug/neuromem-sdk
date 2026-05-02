@@ -37,6 +37,26 @@ def _check_postgres(url: str) -> Tuple[bool, str]:
         return False, f"connect failed: {exc}"
 
 
+def _check_sqlite(url: str) -> Tuple[bool, str]:
+    import sqlite3
+    from pathlib import Path
+
+    raw = url
+    if raw.startswith("sqlite:///"):
+        raw = raw[len("sqlite:///") :]
+    elif raw.startswith("sqlite://"):
+        raw = raw[len("sqlite://") :]
+
+    path = Path(raw).expanduser()
+    try:
+        conn = sqlite3.connect(str(path))
+        conn.execute("SELECT 1")
+        conn.close()
+        return True, f"opened {path}"
+    except Exception as exc:
+        return False, f"open failed: {exc}"
+
+
 def run(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(prog="neuromem doctor")
     parser.add_argument("--config", default="neuromem.yaml")
@@ -73,6 +93,11 @@ def run(argv: list[str]) -> int:
     if db and db.type == "postgres" and db.url:
         ok, msg = _check_postgres(db.url)
         print(f"  Postgres:       {'OK ' if ok else 'FAIL '} {msg}")
+        failures += 0 if ok else 1
+
+    if db and db.type == "sqlite" and db.url:
+        ok, msg = _check_sqlite(db.url)
+        print(f"  SQLite:         {'OK ' if ok else 'FAIL '} {msg}")
         failures += 0 if ok else 1
 
     print()

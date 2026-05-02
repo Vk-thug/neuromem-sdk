@@ -1,172 +1,154 @@
 # NeuroMem Integration Guide — All Platforms
 
 NeuroMem's MCP server works with every major coding agent and AI platform.
+**As of v0.4.7, MCP is mounted in-process by `neuromem ui`** — there's no
+second process to manage. All MCP-aware clients point at the same URL:
+`http://127.0.0.1:7777/mcp/`.
+
+For the n8n-style 4-step first-run flow, see [QUICKSTART.md](./QUICKSTART.md).
 
 ## Prerequisites (all platforms)
 
-1. Install NeuroMem SDK with MCP support:
-   ```bash
-   pip install neuromem-sdk[mcp]
-   ```
+```bash
+pip install 'neuromem-sdk[ui,mcp]'      # 1. install
+neuromem init                            # 2. wizard writes neuromem.yaml
+neuromem ui                              # 3. starts UI + MCP at :7777
+```
 
-2. Create a `neuromem.yaml` config file (or copy from `examples/neuromem.yaml`)
+That's it. The wizard mints a UUID, auto-creates `~/.neuromem/` (if you
+pick SQLite), and writes `mcp.enabled: true` so step 3 exposes both the
+UI and the MCP endpoints.
 
-3. Set your OpenAI API key:
-   ```bash
-   export OPENAI_API_KEY="sk-..."
-   ```
-
-4. Verify the MCP server starts:
-   ```bash
-   python -m neuromem.mcp
-   # Should start without errors (ctrl+C to stop)
-   ```
+`OPENAI_API_KEY` is only required if you switched the wizard's embedding
+choice from Ollama to OpenAI.
 
 ---
 
-## Platforms with Full Plugin Support
+## Platforms with full plugin bundles
 
 ### Claude Code
-See `plugins/claude-code/README.md` — full plugin with commands, agent, skill, and hooks.
-
 ```bash
 cd plugins/claude-code && claude plugin install .
 ```
+Slash commands (`/remember`, `/recall`, `/forget`, `/memories`,
+`/consolidate`), an auto-context skill, a memory-assistant agent, and
+hooks. See [`plugins/claude-code/README.md`](../claude-code/README.md).
 
-### OpenAI Codex CLI
-See `plugins/codex-cli/README.md` — plugin with skill and MCP.
-
+### Cursor
 ```bash
-cp -r plugins/codex-cli ~/.agents/plugins/neuromem
+cp plugins/cursor/.cursor/mcp.json ~/.cursor/mcp.json
 ```
+Config-only. Twelve MCP tools appear in the Cursor MCP panel. See
+[`plugins/cursor/README.md`](../cursor/README.md).
+
+### Antigravity
+```bash
+cp plugins/antigravity/.antigravity/mcp.json ~/.antigravity/mcp.json
+```
+Config-only. See [`plugins/antigravity/README.md`](../antigravity/README.md).
 
 ### Gemini CLI
-See `plugins/gemini-cli/README.md` — extension with TOML commands and context.
-
 ```bash
 cd plugins/gemini-cli && gemini extensions link .
 ```
+TOML commands + GEMINI.md context file + MCP. See
+[`plugins/gemini-cli/README.md`](../gemini-cli/README.md).
+
+### OpenAI Codex CLI
+```bash
+cp -r plugins/codex-cli ~/.agents/plugins/neuromem
+```
+Skill-only. See [`plugins/codex-cli/README.md`](../codex-cli/README.md).
 
 ---
 
-## Platforms with MCP-Only Support
+## MCP-only platforms (config snippet)
 
-These platforms support MCP natively. Add the NeuroMem server to their config:
+Drop this into your client's MCP settings (path varies by client):
 
-### Cline (VS Code Extension)
-
-Open Cline settings and add to MCP servers, or edit `cline_mcp_settings.json`:
 ```json
 {
   "mcpServers": {
     "neuromem": {
-      "command": "python",
-      "args": ["-m", "neuromem.mcp"],
-      "env": {
-        "NEUROMEM_CONFIG": "./neuromem.yaml",
-        "OPENAI_API_KEY": "your-key-here"
-      }
+      "type": "http",
+      "url": "http://127.0.0.1:7777/mcp/"
     }
   }
 }
 ```
 
-### Cursor
+Confirmed-working clients:
 
-Settings > Features > MCP > Add Server:
-```json
-{
-  "neuromem": {
-    "command": "python",
-    "args": ["-m", "neuromem.mcp"],
-    "env": {
-      "NEUROMEM_CONFIG": "./neuromem.yaml",
-      "OPENAI_API_KEY": "your-key-here"
-    }
-  }
-}
-```
-
-### Windsurf / Cascade
-
-Add via Windsurf Settings > MCP Servers:
-```json
-{
-  "neuromem": {
-    "command": "python",
-    "args": ["-m", "neuromem.mcp"],
-    "env": {
-      "NEUROMEM_CONFIG": "./neuromem.yaml",
-      "OPENAI_API_KEY": "your-key-here"
-    }
-  }
-}
-```
-
-### GitHub Copilot (Agent Mode)
-
-Add to your repository's MCP config or VS Code settings:
-```json
-{
-  "mcpServers": {
-    "neuromem": {
-      "command": "python",
-      "args": ["-m", "neuromem.mcp"],
-      "env": {
-        "NEUROMEM_CONFIG": "./neuromem.yaml",
-        "OPENAI_API_KEY": "your-key-here"
-      }
-    }
-  }
-}
-```
-Note: Copilot coding agent only supports MCP tools (not resources or prompts).
-
-### Aider
-
-Community MCP support via mcpm-aider or direct configuration. See Aider docs for current MCP integration status.
+| Client | Settings location |
+|---|---|
+| Cline (VS Code) | `cline_mcp_settings.json` |
+| Windsurf / Cascade | Settings → MCP Servers |
+| GitHub Copilot (Agent Mode) | Repository or VS Code MCP config |
+| Aider | `.aider.conf.yml` (community MCP support) |
 
 ---
 
-## Cloud AI Platforms (Remote HTTP)
+## Cloud chat clients (Claude.ai, ChatGPT, Google AI Studio)
 
-For Claude.ai, ChatGPT, and Google AI Studio, run the MCP server in HTTP mode:
+These can't reach `127.0.0.1` — expose the in-process MCP through a tunnel:
 
 ```bash
-python -m neuromem.mcp --transport http --port 8000
+neuromem ui --public                  # cloudflared tunnel by default
 ```
 
-This starts a Streamable HTTP server at `http://localhost:8000/mcp`.
-
-For production, deploy behind HTTPS (e.g., with nginx, Caddy, or a cloud provider).
+This prints a public URL (e.g., `https://abc-def.trycloudflare.com/mcp/`)
+plus a copy-pasteable connector config for Claude.ai, ChatGPT, and
+Gemini chat. The tunnel writes `~/.neuromem/mcp-public.json` with the
+matching connector blobs.
 
 ### Claude.ai
-
-1. Go to Settings > Connectors > Add Custom Connector
-2. Enter name: "NeuroMem"
-3. Enter MCP server URL: `https://your-server.com/mcp`
+1. Settings → Connectors → Add Custom Connector
+2. Name: "NeuroMem"
+3. URL: paste the public URL from the banner
 4. Works on web, iOS, and Android
 
 ### ChatGPT
-
-1. Go to Settings > Connectors > Advanced > Developer Mode
-2. Add MCP server URL: `https://your-server.com/mcp`
-3. The 12 NeuroMem tools will appear as available actions
+1. Settings → Connectors → Advanced → Developer Mode
+2. Add MCP server URL: paste the public URL
+3. The 12 NeuroMem tools appear as actions
 
 ### Google AI Studio
+Use the Google Gen AI SDK; pass the URL as an MCP tool provider.
 
-Use the Google Gen AI SDK to connect:
-```python
-from google import genai
-client = genai.Client()
-# Connect MCP server as tool provider
+---
+
+## Standalone `neuromem-mcp` (Docker / headless)
+
+If you can't run `neuromem ui` in your environment (Docker container,
+agent-host without the UI extras, CI), fall back to the standalone
+console script:
+
+```bash
+neuromem-mcp                                # stdio
+neuromem-mcp --transport http --port 8000   # HTTP at /mcp
+neuromem-mcp --transport http --public      # HTTP + cloudflared tunnel
+```
+
+Then point your client at the standalone URL or use the stdio config:
+
+```json
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "python",
+      "args": ["-m", "neuromem.mcp"],
+      "env": {
+        "NEUROMEM_CONFIG": "./neuromem.yaml",
+        "NEUROMEM_USER_ID": "<uuid-from-yaml>"
+      }
+    }
+  }
+}
 ```
 
 ---
 
-## Available MCP Tools
-
-All platforms get access to these 12 tools:
+## Available MCP tools (12)
 
 | Tool | Description |
 |------|-------------|
@@ -183,13 +165,33 @@ All platforms get access to these 12 tools:
 | `find_by_tags` | Hierarchical tag search |
 | `get_graph` | Export entity-relationship knowledge graph |
 
-## Storage Backends
+## Storage backends (configure in `neuromem.yaml`)
 
-Configure in `neuromem.yaml`:
+| Backend | Best for | `database.type` | `vector_store.type` |
+|---------|----------|-----------------|---------------------|
+| In-Memory | Tests, throwaway dev | `memory` | `memory` |
+| SQLite | Single-user local (default) | `sqlite` | `sqlite` |
+| Qdrant | High-scale vector search | `sqlite`/`postgres` | `qdrant` |
+| Postgres + pgvector | Production, multi-user service mode | `postgres` | `postgres` |
 
-| Backend | Best For | Config |
-|---------|----------|--------|
-| In-Memory | Development, testing | `type: memory` |
-| SQLite | Single-user local | `type: sqlite` |
-| PostgreSQL + pgvector | Production | `type: postgres` |
-| Qdrant | High-scale vector search | `type: qdrant` |
+The wizard's recommended single-user combo is **Qdrant for vectors,
+SQLite at `~/.neuromem/memory.db` for records.**
+
+## Python SDK adapters
+
+For Python apps that want to embed NeuroMem rather than call it over MCP,
+the SDK ships native adapters under `neuromem.adapters.*`:
+
+| Framework | Module | Pattern |
+|---|---|---|
+| LangChain | `neuromem.adapters.langchain` | `BaseChatMessageHistory` impl |
+| LangGraph | `neuromem.adapters.langgraph` | Checkpointer-compatible store |
+| CrewAI | `neuromem.adapters.crewai` | Long-term memory backend |
+| AutoGen / ag2 | `neuromem.adapters.autogen` | `Memory` interface |
+| DSPy | `neuromem.adapters.dspy` | Retriever + persistence |
+| Haystack | `neuromem.adapters.haystack` | DocumentStore impl |
+| Semantic Kernel | `neuromem.adapters.semantic_kernel` | `MemoryStoreBase` impl |
+| LiteLLM | `neuromem.adapters.litellm` | Hook for chat completions |
+
+Each is documented in `examples/integrations/`. Same `neuromem.yaml`
+drives both the SDK adapters and the MCP server — no double config.

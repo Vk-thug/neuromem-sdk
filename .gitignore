@@ -87,6 +87,12 @@ plan/
 live-test/
 reference/
 
+# v0.4.7: Playwright MCP test artifacts (screenshots, console logs).
+# Captured by the ruthless E2E tester runs against a local UI; not
+# meant to live in the repo.
+/.playwright-mcp/
+/*.png
+
 # Benchmark artifacts — dataset files + reproducible result JSONs
 data/
 benchmarks/results/

@@ -4,6 +4,70 @@ This file tracks the **latest** release with context, positioning, and per-relea
 
 ---
 
+## v0.4.7 — In-process MCP, SQLite parity, ruthless E2E hardening (2026-05-02)
+
+**Previous version:** v0.4.6 · **PyPI:** `pip install 'neuromem-sdk[ui,mcp]==0.4.7'`
+
+### Headline
+
+One install, one init, browser finishes setup, every integration lights up automatically — n8n-style. `neuromem init` writes a UUID for your single-user identity, picks SQLite + Qdrant by default, and turns MCP on so `neuromem ui` exposes both the dashboard and the MCP endpoints from a single process at `http://127.0.0.1:7777` and `/mcp/`. No second `neuromem-mcp` process to babysit. Quiet log volume. Plugin manifests for Claude Code / Cursor / Antigravity / Gemini / Codex all point at the in-process URL by default.
+
+### What's new
+
+**Auto-start MCP in the UI process.** `mcp.enabled: true` is the wizard default. The FastAPI app mounts the FastMCP `streamable_http_app()` at `/mcp/` and wires the session-manager lifespan into FastAPI's lifespan, so MCP requests just work — no separate process, no second port, no stdio handshake. The standalone `neuromem-mcp` console script is preserved for Docker / agent-host scenarios.
+
+**SQLite as a first-class storage choice.** Mirrors the Postgres pattern exactly — same wizard prompt shape, same `_build_yaml` block, same dispatch in `__init__.py`, same `doctor` check. SQLite URLs (`sqlite:///~/.neuromem/memory.db`) auto-expand `~` and create the parent directory. The default-yaml combo is now Qdrant for vectors + SQLite at `~/.neuromem/memory.db` for records.
+
+**Auto-UUID for `mode:single`.** The wizard mints a fresh `uuid.uuid4()` and writes it under `neuromem.user.id`. The UI launcher's `--user` resolution policy is now: explicit flag → yaml → env var → mint+persist+warn. The literal string `"default"` (which the v0.4.6 user-store validator rejected) can no longer reach POST `/api/memories`. Legacy yamls without `user.id` get a UUID minted and persisted on first launch with a one-line warning.
+
+**Quiet startup.** Banner + ready URL + Ctrl+C hint, that's it. `--verbose` opt-in surfaces the uvicorn per-request access logs. Matches the inngest dev-server / n8n volume.
+
+**SPA catch-all.** Direct deep-link URLs (`/settings`, `/onboarding`, `/memories`, `/graph`) now serve `index.html` so the React Router can hydrate. Previously every refresh on a non-root route 404'd.
+
+**Plugin manifests updated.** `.mcp.json` and `gemini-extension.json` for all five plugin bundles (Claude Code, Cursor, Antigravity, Gemini CLI, Codex CLI) now default to `{"type":"http","url":"http://127.0.0.1:7777/mcp/"}`. Stdio command shape is preserved as a documented fallback for Docker.
+
+**New docs.** `plugins/docs/QUICKSTART.md` is the n8n-style 5-step first-run guide. `plugins/docs/INTEGRATION_GUIDE.md` rewritten around the in-process default.
+
+### Bug fixes (caught by ruthless E2E testing)
+
+- **MCP 500 "Task group is not initialized":** mounted FastMCP sub-app's session manager is now wired into FastAPI's lifespan, so its task group runs for the lifetime of the parent app. Without this, every MCP request crashed.
+- **`/mcp` 404 (no trailing slash):** explicit 307 redirect to `/mcp/` — Starlette's `Mount` doesn't match a bare prefix.
+- **MCP user_id fell back to "default":** `cli.py` now sets `os.environ["NEUROMEM_USER_ID"]` to the resolved UUID before launching uvicorn so the MCP lifespan inherits it.
+- **`__version__` was stale (read 0.4.6):** now reads from `importlib.metadata.version("neuromem-sdk")` — survives bumps without manual editing.
+- **`/api/health` returned hardcoded `"version": "0.4.0"`:** now reads from `neuromem.__version__`.
+- **`/api/retrievals/stream` 404:** `/{run_id}` capture matched `stream` first; route order fixed.
+- **POST `/api/memories` 500 on empty `assistant_output`:** now defaults to `"(observed)"` placeholder, returns 200 with the new memory's `id` so callers don't need a follow-up LIST.
+- **POST `/api/memories` with non-string `content` 500:** now type-checks and returns 422.
+- **DELETE unknown id 500:** now returns 404 with `{"detail": "memory not found"}`.
+- **PUT `/api/memories/{id}` returned 32-char hex (no dashes):** now returns standard dashed UUID.
+- **`/api/mcp-config` had only `claude_code`, hardcoded port 7799 hint:** now lists all 7 client blobs at the live local URL with stdio fallback.
+- **`ollama` Python module wasn't a declared dep:** retrieval silently used mock md5-hash vectors on clean installs. Added to `[ui]` extra and as standalone `[ollama]` extra.
+- **SQLite parallel-retrieval `InterfaceError`:** the controller's `concurrent.futures.ThreadPoolExecutor`-driven parallel retrieval raced on the shared connection. Added a `threading.RLock` around all cursor operations in `SQLiteBackend`. 0 failures observed under 50 concurrent ops post-fix.
+- **`_persist_user_id` rewrote the entire yaml with defaults:** now does a minimal yaml-level merge that preserves exactly what the user wrote.
+- **favicon 404 on every page load:** now 204 if no asset.
+- **`migrate-user` ghost command in the legacy-yaml warning:** replaced with an actionable `NEUROMEM_USER_ID=...` hint.
+
+### Breaking changes
+
+None. Existing yamls keep working — a missing `user.id` triggers the mint+persist path, missing `mcp.{enabled,mount_path,expose_as}` get schema defaults (`enabled: true`, `mount_path: /mcp`).
+
+### Verified
+
+- 467 unit tests passing, 5 skipped, 0 regressions.
+- 50 concurrent operations (30 search + 10 POST + 10 DELETE) — 0 InterfaceError, 0 ERROR lines.
+- Real Ollama embeddings observed (44 calls per stress run; 0 mock fallbacks).
+- Beacon round-trip: stored content flows UI → controller → SQLite → vector search → JSON response intact.
+- Two ruthless E2E test passes (CLI + HTTP + MCP) and one Playwright UI pass; every backend bug surfaced has been fixed.
+
+### Known follow-ups (deferred to v0.4.8)
+
+- SPA Settings page lacks the MCP toggle / user.id readout / version badge — needs a Vite rebuild of `ui/web/`.
+- SPA "New memory" button still uses `window.prompt` instead of an in-app modal.
+- MCP `update_memory` returns `isError=false` even on app-level refusal.
+- JSON content fields with literal `\n` aren't escaped (`\\n`) in API responses — strict parsers (Python `json`) trip on the control character.
+
+---
+
 ## v0.4.6 — Root-cause fix: `ui/src/lib/` was gitignored (2026-04-29)
 
 **Previous version:** v0.4.5 (yanked) · **PyPI:** `pip install neuromem-sdk==0.4.6`

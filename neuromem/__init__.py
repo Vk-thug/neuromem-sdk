@@ -827,4 +827,9 @@ __all__ = [
     "MemoryBackend",
 ]
 
-__version__ = "0.4.6"
+try:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("neuromem-sdk")
+except Exception:  # pragma: no cover - editable installs without metadata
+    __version__ = "0.4.7"

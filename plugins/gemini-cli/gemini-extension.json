@@ -1,11 +1,11 @@
 {
   "name": "neuromem",
-  "version": "0.2.0",
+  "version": "0.4.7",
   "description": "Brain-inspired persistent memory for coding agents — remember, recall, consolidate, and forget naturally",
   "settings": [
     {
       "name": "OpenAI API Key",
-      "description": "API key for embeddings and LLM consolidation (text-embedding-3-large + gpt-4o-mini)",
+      "description": "API key for embeddings and LLM consolidation (optional — Ollama default works without it)",
       "envVar": "OPENAI_API_KEY",
       "sensitive": true
     },
@@ -17,7 +17,7 @@
     },
     {
       "name": "User ID",
-      "description": "Unique user ID for memory scoping (default: 'default')",
+      "description": "Override user ID (default: read from neuromem.yaml). Wizard mints a UUID on first init.",
       "envVar": "NEUROMEM_USER_ID",
       "sensitive": false
     }
@@ -25,9 +25,8 @@
   "contextFileName": "GEMINI.md",
   "mcpServers": {
     "neuromem": {
-      "command": "python",
-      "args": ["-m", "neuromem.mcp"],
-      "cwd": "${workspacePath}"
+      "httpUrl": "http://127.0.0.1:7777/mcp/",
+      "_comment": "v0.4.7 default — points at the in-process MCP mounted by `neuromem ui`. To use the standalone process instead (Docker, agent-host scenarios), replace this object with: { \"command\": \"python\", \"args\": [\"-m\", \"neuromem.mcp\"], \"cwd\": \"${workspacePath}\" }"
     }
   }
 }

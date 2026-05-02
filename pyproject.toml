@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "neuromem-sdk"
-version = "0.4.6"
+version = "0.4.7"
 description = "Brain-Faithful Multimodal Memory SDK for AI Agents"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -67,6 +67,13 @@ ui = [
     "questionary>=2.0.0",
     "sqlalchemy>=2.0.0",
     "bcrypt>=4.0.0",
+    # Default embedding (nomic-embed-text) routes to a local Ollama
+    # daemon via this client. Without it retrieval silently falls back
+    # to mock md5-hash vectors.
+    "ollama>=0.1.0",
+]
+ollama = [
+    "ollama>=0.1.0",
 ]
 ingest = [
     "docling>=2.0.0",

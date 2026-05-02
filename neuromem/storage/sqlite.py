@@ -26,15 +26,45 @@ class SQLiteBackend:
         """
         Initialize SQLite backend.
 
+        Accepts either a bare filesystem path (``./neuromem.db``,
+        ``~/.neuromem/memory.db``) or a SQLAlchemy-style URL
+        (``sqlite:///~/.neuromem/memory.db``). ``~`` is expanded and the
+        parent directory is auto-created if missing — same shape as the
+        Postgres backend's URL handling.
+
         Args:
-            db_path: Path to SQLite database file
+            db_path: Filesystem path or ``sqlite:///`` URL
         """
-        self.conn = sqlite3.connect(db_path, check_same_thread=False)
+        from pathlib import Path
+
+        raw = db_path or "neuromem.db"
+        if raw.startswith("sqlite:///"):
+            raw = raw[len("sqlite:///") :]
+        elif raw.startswith("sqlite://"):
+            raw = raw[len("sqlite://") :]
+
+        resolved = Path(raw).expanduser()
+        if resolved.parent and str(resolved.parent) not in ("", "."):
+            resolved.parent.mkdir(parents=True, exist_ok=True)
+
+        self.conn = sqlite3.connect(str(resolved), check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
+        # SQLite connections allow check_same_thread=False but cursor
+        # operations on a single connection are NOT thread-safe — the
+        # controller's parallel retrieval (one thread per memory layer)
+        # races and produces ``InterfaceError: bad parameter or other
+        # API misuse``. Serialise all cursor work behind a single lock.
+        import threading as _threading
+
+        self._lock = _threading.RLock()
         self._ensure_schema()
 
     def _ensure_schema(self):
         """Ensure the database schema exists."""
+        with self._lock:
+            self._ensure_schema_locked()
+
+    def _ensure_schema_locked(self):
         cursor = self.conn.cursor()
 
         cursor.execute("""
@@ -70,80 +100,86 @@ class SQLiteBackend:
 
     def upsert(self, item: MemoryItem) -> None:
         """Insert or update a memory item."""
-        cursor = self.conn.cursor()
+        with self._lock:
+            cursor = self.conn.cursor()
 
-        # Check if exists
-        cursor.execute("SELECT reinforcement FROM user_memories WHERE id = ?", (item.id,))
-        existing = cursor.fetchone()
+            # Check if exists
+            cursor.execute("SELECT reinforcement FROM user_memories WHERE id = ?", (item.id,))
+            existing = cursor.fetchone()
 
-        reinforcement = item.reinforcement
-        if existing:
-            reinforcement = existing[0] + 1
+            reinforcement = item.reinforcement
+            if existing:
+                reinforcement = existing[0] + 1
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO user_memories
-            (id, user_id, content, embedding, memory_type, salience, confidence,
-             created_at, last_accessed, decay_rate, reinforcement, inferred, editable, tags)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-            (
-                item.id,
-                item.user_id,
-                item.content,
-                json.dumps(item.embedding),
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO user_memories
+                (id, user_id, content, embedding, memory_type, salience, confidence,
+                 created_at, last_accessed, decay_rate, reinforcement, inferred, editable, tags)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
                 (
-                    item.memory_type.value
-                    if isinstance(item.memory_type, MemoryType)
-                    else item.memory_type
+                    item.id,
+                    item.user_id,
+                    item.content,
+                    json.dumps(item.embedding),
+                    (
+                        item.memory_type.value
+                        if isinstance(item.memory_type, MemoryType)
+                        else item.memory_type
+                    ),
+                    item.salience,
+                    item.confidence,
+                    item.created_at.isoformat(),
+                    item.last_accessed.isoformat(),
+                    item.decay_rate,
+                    reinforcement,
+                    1 if item.inferred else 0,
+                    1 if item.editable else 0,
+                    json.dumps(item.tags),
                 ),
-                item.salience,
-                item.confidence,
-                item.created_at.isoformat(),
-                item.last_accessed.isoformat(),
-                item.decay_rate,
-                reinforcement,
-                1 if item.inferred else 0,
-                1 if item.editable else 0,
-                json.dumps(item.tags),
-            ),
-        )
+            )
 
-        self.conn.commit()
+            self.conn.commit()
 
     def query(
         self, embedding: List[float], filters: Dict[str, Any], k: int
     ) -> Tuple[List[MemoryItem], List[float]]:
         """Query for similar memories using cosine similarity."""
-        cursor = self.conn.cursor()
-
         # Build query
         where_clauses = []
-        params = []
+        params: List[Any] = []
+
+        # sqlite3 only accepts str/int/float/bytes/None as parameter
+        # bindings. The retrieval pipeline can pass MemoryType enums or
+        # numpy scalars; coerce everything to a plain str up front.
+        def _norm(v: Any) -> str:
+            return v.value if isinstance(v, MemoryType) else str(v)
 
         if "user_id" in filters:
             where_clauses.append("user_id = ?")
-            params.append(filters["user_id"])
+            params.append(_norm(filters["user_id"]))
 
         if "memory_type" in filters:
             types = filters["memory_type"]
-            if isinstance(types, str):
+            if isinstance(types, (str, MemoryType)):
                 types = [types]
             placeholders = ",".join(["?"] * len(types))
             where_clauses.append(f"memory_type IN ({placeholders})")
-            params.extend(types)
+            params.extend(_norm(t) for t in types)
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
-        cursor.execute(
-            f"""
-            SELECT * FROM user_memories
-            WHERE {where_sql}
-        """,
-            params,
-        )
-
-        rows = cursor.fetchall()
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                f"""
+                SELECT * FROM user_memories
+                WHERE {where_sql}
+            """,
+                params,
+            )
+            rows = cursor.fetchall()
 
         if not rows:
             return [], []
@@ -175,9 +211,10 @@ class SQLiteBackend:
 
     def get_by_id(self, item_id: str) -> MemoryItem | None:
         """Get a memory by ID."""
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT * FROM user_memories WHERE id = ?", (item_id,))
-        row = cursor.fetchone()
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("SELECT * FROM user_memories WHERE id = ?", (item_id,))
+            row = cursor.fetchone()
 
         if not row:
             return None
@@ -186,63 +223,66 @@ class SQLiteBackend:
 
     def update(self, item: MemoryItem) -> None:
         """Update an existing memory item."""
-        cursor = self.conn.cursor()
-        cursor.execute(
-            """
-            UPDATE user_memories
-            SET content = ?,
-                embedding = ?,
-                last_accessed = ?,
-                confidence = ?,
-                salience = ?
-            WHERE id = ?
-        """,
-            (
-                item.content,
-                json.dumps(item.embedding),
-                item.last_accessed.isoformat(),
-                item.confidence,
-                item.salience,
-                item.id,
-            ),
-        )
-        self.conn.commit()
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute(
+                """
+                UPDATE user_memories
+                SET content = ?,
+                    embedding = ?,
+                    last_accessed = ?,
+                    confidence = ?,
+                    salience = ?
+                WHERE id = ?
+            """,
+                (
+                    item.content,
+                    json.dumps(item.embedding),
+                    item.last_accessed.isoformat(),
+                    item.confidence,
+                    item.salience,
+                    item.id,
+                ),
+            )
+            self.conn.commit()
 
     def delete(self, item_id: str) -> bool:
         """Delete a memory item."""
-        cursor = self.conn.cursor()
-        cursor.execute("DELETE FROM user_memories WHERE id = ?", (item_id,))
-        self.conn.commit()
-        return cursor.rowcount > 0
+        with self._lock:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM user_memories WHERE id = ?", (item_id,))
+            self.conn.commit()
+            return cursor.rowcount > 0
 
     def list_all(
         self, user_id: str, memory_type: str | None = None, limit: int = 100
     ) -> List[MemoryItem]:
         """List all memories for a user."""
-        cursor = self.conn.cursor()
+        with self._lock:
+            cursor = self.conn.cursor()
 
-        if memory_type:
-            cursor.execute(
-                """
-                SELECT * FROM user_memories
-                WHERE user_id = ? AND memory_type = ?
-                ORDER BY last_accessed DESC
-                LIMIT ?
-            """,
-                (user_id, memory_type, limit),
-            )
-        else:
-            cursor.execute(
-                """
-                SELECT * FROM user_memories
-                WHERE user_id = ?
-                ORDER BY last_accessed DESC
-                LIMIT ?
-            """,
-                (user_id, limit),
-            )
+            if memory_type:
+                cursor.execute(
+                    """
+                    SELECT * FROM user_memories
+                    WHERE user_id = ? AND memory_type = ?
+                    ORDER BY last_accessed DESC
+                    LIMIT ?
+                """,
+                    (user_id, memory_type, limit),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT * FROM user_memories
+                    WHERE user_id = ?
+                    ORDER BY last_accessed DESC
+                    LIMIT ?
+                """,
+                    (user_id, limit),
+                )
 
-        rows = cursor.fetchall()
+            rows = cursor.fetchall()
         return [self._row_to_item(row) for row in rows]
 
     def _row_to_item(self, row: sqlite3.Row) -> MemoryItem:

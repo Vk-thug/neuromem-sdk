@@ -1,44 +1,34 @@
 # NeuroMem Plugin for Cursor
 
 Brain-inspired persistent memory inside Cursor. Connects via MCP (Model
-Context Protocol) — Cursor reads `.cursor/mcp.json` and spawns the
-NeuroMem MCP server as a subprocess.
+Context Protocol) — Cursor reads `.cursor/mcp.json` and dials the
+NeuroMem MCP endpoint over HTTP.
+
+## Quickstart (v0.4.7+)
+
+```bash
+pip install 'neuromem-sdk[ui,mcp]'
+neuromem init                  # browser opens, finishes setup
+neuromem ui                    # serves UI + MCP at http://127.0.0.1:7777
+```
+
+The plugin's `mcp.json` already points at `http://127.0.0.1:7777/mcp/`.
+Drop it into your project (Option A) or globally (Option B) and Cursor
+picks up the tools as soon as `neuromem ui` is running.
 
 ## Installation
 
 ### Option A — Project-level config (recommended)
 
-Copy the file `.cursor/mcp.json` from this directory into the root of your
-Cursor project:
-
 ```bash
 cp plugins/cursor/.cursor/mcp.json /path/to/your-project/.cursor/mcp.json
 ```
 
-Cursor picks up the MCP server on the next session.
-
 ### Option B — Global config
 
-Drop the same file into `~/.cursor/mcp.json` to enable NeuroMem across all
-your Cursor projects.
-
-## Prerequisites
-
 ```bash
-pip install 'neuromem-sdk[mcp]'
+cp plugins/cursor/.cursor/mcp.json ~/.cursor/mcp.json
 ```
-
-Set environment variables (or replace the `${env:...}` placeholders in
-`.cursor/mcp.json` with literal values):
-
-| Variable | Purpose | Default |
-|---|---|---|
-| `NEUROMEM_CONFIG` | path to `neuromem.yaml` | `./neuromem.yaml` |
-| `NEUROMEM_USER_ID` | scoping ID for stored memories | `default` |
-| `OPENAI_API_KEY` | embeddings + consolidation | _(required if using OpenAI)_ |
-
-For local-only Ollama embeddings, point `neuromem.yaml` at
-`ollama/nomic-embed-text` and skip the OpenAI key.
 
 ## Verifying the connection
 
@@ -51,22 +41,30 @@ You should see twelve tools listed under `neuromem`:
 
 Ask Cursor: _"Use neuromem.search_memories to recall my preferences."_
 
-## Storage backend
+## Standalone MCP fallback
 
-The default `neuromem.yaml` uses Qdrant. Start it locally:
+If you can't run `neuromem ui` (Docker, headless agent host, CI), swap
+`mcp.json` for the stdio command:
 
-```bash
-docker run -p 6333:6333 qdrant/qdrant
+```json
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "python",
+      "args": ["-m", "neuromem.mcp"],
+      "env": {
+        "NEUROMEM_CONFIG": "${env:NEUROMEM_CONFIG}",
+        "NEUROMEM_USER_ID": "${env:NEUROMEM_USER_ID}"
+      }
+    }
+  }
+}
 ```
-
-If Qdrant is unavailable, NeuroMem falls back to in-memory storage with a
-warning — your memories will not persist across sessions in that case.
 
 ## See also
 
+- [`plugins/docs/QUICKSTART.md`](../docs/QUICKSTART.md) — first-run guide.
 - [`plugins/docs/INTEGRATION_GUIDE.md`](../docs/INTEGRATION_GUIDE.md) — full
   integration overview across all clients.
 - [`plugins/claude-code/`](../claude-code) — reference plugin with slash
-  commands, hooks, and an agent definition. Cursor's plugin shape is
-  simpler (config-only); use the Claude Code plugin as the model for
-  custom prompts and workflows.
+  commands, hooks, and an agent definition.

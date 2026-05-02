@@ -84,6 +84,24 @@ class UISettings(_Permissive):
     host: str = "127.0.0.1"
 
 
+class UserBlock(_Permissive):
+    """Single-user identity. Wizard mints a UUID for ``mode:single`` so the
+    UI launcher never falls back to the literal string ``"default"`` (which
+    the v0.4.6 user-store validator rejects).
+    """
+
+    id: Optional[str] = None
+
+
+class McpConfig(_Permissive):
+    """In-process MCP mount configuration. Defaults to enabled so
+    ``neuromem init`` boots one process exposing both the UI and MCP."""
+
+    enabled: bool = True
+    mount_path: str = "/mcp"
+    expose_as: Literal["http", "sse"] = "http"
+
+
 class NeuroMemDoc(_Permissive):
     """The body under the top-level ``neuromem:`` key."""
 
@@ -91,6 +109,8 @@ class NeuroMemDoc(_Permissive):
     setup_complete: bool = False
     auth: AuthConfig = Field(default_factory=AuthConfig)
     ui: UISettings = Field(default_factory=UISettings)
+    user: UserBlock = Field(default_factory=UserBlock)
+    mcp: McpConfig = Field(default_factory=McpConfig)
     model: ModelConfig = Field(default_factory=ModelConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     memory: MemorySettings = Field(default_factory=MemorySettings)
@@ -201,4 +221,6 @@ __all__ = [
     "AsyncSettings",
     "AuthConfig",
     "UISettings",
+    "UserBlock",
+    "McpConfig",
 ]

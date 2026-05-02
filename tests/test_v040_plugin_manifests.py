@@ -28,19 +28,28 @@ PLUGINS_DIR = REPO_ROOT / "plugins"
 def test_mcp_manifest_shape(manifest_path: Path) -> None:
     """Every MCP manifest must:
     1. Be valid JSON.
-    2. Contain a top-level ``mcpServers`` mapping.
-    3. Contain a ``neuromem`` server entry.
-    4. Reference ``python -m neuromem.mcp`` as the command.
+    2. Contain a top-level ``mcpServers`` mapping with a ``neuromem`` entry.
+    3. Either reference the in-process MCP URL (v0.4.7+ default) OR the
+       legacy ``python -m neuromem.mcp`` stdio command.
     """
     assert manifest_path.exists(), f"missing manifest: {manifest_path}"
     data = json.loads(manifest_path.read_text())
     assert "mcpServers" in data, f"no mcpServers in {manifest_path}"
     assert "neuromem" in data["mcpServers"], f"no neuromem entry in {manifest_path}"
     server = data["mcpServers"]["neuromem"]
-    assert server.get("command") == "python", f"unexpected command in {manifest_path}"
-    assert "neuromem.mcp" in (
-        server.get("args") or []
-    ), f"command does not invoke neuromem.mcp in {manifest_path}"
+
+    is_http = server.get("type") == "http" and "url" in server
+    is_stdio = server.get("command") == "python" and "neuromem.mcp" in (server.get("args") or [])
+
+    assert is_http or is_stdio, (
+        f"manifest at {manifest_path} is neither in-process HTTP "
+        f'({{"type":"http","url":"..."}}) nor stdio (python -m neuromem.mcp): {server!r}'
+    )
+
+    if is_http:
+        assert (
+            "/mcp" in server["url"]
+        ), f"in-process MCP URL must include /mcp path: {server['url']}"
 
 
 def test_cursor_plugin_readme_exists() -> None:

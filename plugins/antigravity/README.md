@@ -1,17 +1,25 @@
 # NeuroMem Plugin for Antigravity
 
 Brain-inspired persistent memory inside Google's Antigravity coding
-agent. Connects via MCP (Model Context Protocol).
+agent. Connects via MCP (Model Context Protocol) over HTTP.
 
 > **Note on Antigravity MCP shape:** as of 2026-Q1, Antigravity supports
 > the standard `mcpServers` config schema used by Claude Code, Cursor,
 > and other MCP-aware IDEs. If your build of Antigravity expects a
 > different config path or schema, see the troubleshooting section below.
 
-## Installation
+## Quickstart (v0.4.7+)
 
-Drop `.antigravity/mcp.json` from this directory into your Antigravity
-project root, or into `~/.antigravity/` for global enablement:
+```bash
+pip install 'neuromem-sdk[ui,mcp]'
+neuromem init                  # browser opens, finishes setup
+neuromem ui                    # serves UI + MCP at http://127.0.0.1:7777
+```
+
+The plugin's `mcp.json` already points at `http://127.0.0.1:7777/mcp/`.
+Antigravity picks up the tools as soon as `neuromem ui` is running.
+
+## Installation
 
 ```bash
 # Project-level
@@ -23,31 +31,6 @@ cp plugins/antigravity/.antigravity/mcp.json ~/.antigravity/mcp.json
 
 Restart the Antigravity session.
 
-## Prerequisites
-
-```bash
-pip install 'neuromem-sdk[mcp]'
-```
-
-Set environment variables (or hard-code values in `.antigravity/mcp.json`):
-
-| Variable | Purpose |
-|---|---|
-| `NEUROMEM_CONFIG` | path to `neuromem.yaml` |
-| `NEUROMEM_USER_ID` | scoping ID for stored memories |
-| `OPENAI_API_KEY` | embeddings + consolidation (skip if using Ollama) |
-
-## Storage
-
-Default `neuromem.yaml` uses Qdrant on `localhost:6333`:
-
-```bash
-docker run -p 6333:6333 qdrant/qdrant
-```
-
-NeuroMem falls back to in-memory storage with a warning if Qdrant is
-unavailable.
-
 ## Tools exposed to Antigravity
 
 Twelve MCP tools, grouped:
@@ -58,17 +41,37 @@ Twelve MCP tools, grouped:
 - **Edit** — `update_memory`, `delete_memory`
 - **Maintenance** — `consolidate`, `get_stats`
 
+## Standalone MCP fallback
+
+If you can't run `neuromem ui` (Docker, headless agent host, CI), swap
+`mcp.json` for the stdio command:
+
+```json
+{
+  "mcpServers": {
+    "neuromem": {
+      "command": "python",
+      "args": ["-m", "neuromem.mcp"],
+      "env": {
+        "NEUROMEM_CONFIG": "${env:NEUROMEM_CONFIG}",
+        "NEUROMEM_USER_ID": "${env:NEUROMEM_USER_ID}"
+      }
+    }
+  }
+}
+```
+
 ## Troubleshooting
 
 ### Antigravity expects `${user_config.*}` style placeholders
 
 Earlier Antigravity builds used a Claude-Code-compatible config schema
 with `user_config.*` fields. Replace the `${env:NEUROMEM_*}` placeholders
-in `.antigravity/mcp.json` with literal values, or fall back to the
+in the standalone fallback above with literal values, or fall back to the
 config shape used in [`plugins/claude-code/.mcp.json`](../claude-code/.mcp.json).
 
-### MCP server fails to start
+### `neuromem ui` not running
 
-Check that `python -m neuromem.mcp` runs cleanly from a terminal in the
-same shell environment Antigravity launches. The most common failure is
-a missing Python `mcp` package (`pip install 'neuromem-sdk[mcp]'`).
+If MCP tool calls fail with "connection refused", confirm `neuromem ui`
+is alive: `curl http://127.0.0.1:7777/api/health`. Start it with the
+Quickstart command above.

@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-05-02
+
+In-process MCP, SQLite parity, ruthless E2E hardening. One install, one init, one running process serves UI + MCP. See `RELEASE_NOTES.md` for full context.
+
+### Added
+
+- **In-process MCP mount** (`mcp.enabled: true` default in `neuromem.yaml`). FastAPI lifespan runs FastMCP's `session_manager.run()`; sub-app mounted at `cfg.mcp.mount_path` (default `/mcp`). Works for streamable-HTTP and SSE transports.
+- **`McpConfig` schema block** (`config_schema.py`) — `enabled: bool`, `mount_path: str`, `expose_as: Literal["http","sse"]`.
+- **`UserBlock` schema** — `user.id` for single-user identity; wizard mints UUID for `mode:single`.
+- **SQLite first-class storage**: wizard prompt, `_build_yaml` branch, doctor `_check_sqlite()`. `SQLiteBackend.__init__` accepts `sqlite:///...` URLs, expands `~`, auto-creates parent directory.
+- **`--verbose` flag** on `neuromem ui` (default off — quiet uvicorn access logs).
+- **307 redirect** from `/mcp` → `/mcp/` so URLs without trailing slash work.
+- **SPA catch-all route** — every non-API GET serves `index.html` (deep-link refreshes no longer 404).
+- **`/api/mcp-config`** now returns 7 client blobs (claude_code, cursor, antigravity, gemini_cli, codex_cli, cline, windsurf) at the live local URL plus a stdio `_stdio_fallback`.
+- **`favicon.ico`/`favicon.svg` route** — 204 fallback.
+- **`tests/test_v047_uuid_resolution.py`** — 7 cases covering Strategy-B resolver.
+- **`tests/test_v047_mcp_mount.py`** — mount-on / mount-off contract.
+- **`plugins/docs/QUICKSTART.md`** — n8n-style 5-step first-run.
+
+### Changed
+
+- **`neuromem.__version__`** now reads from `importlib.metadata.version("neuromem-sdk")` (no manual bumps).
+- **`/api/health`** version field reads from `__version__` (was hardcoded `"0.4.0"`).
+- **`neuromem-sdk[ui]` extra** now includes `ollama>=0.1.0` (default embedding requires it; without it retrieval silently used mock vectors).
+- **All 5 plugin manifests** (`plugins/{claude-code,cursor,antigravity,gemini-cli,codex-cli}/`) point at `http://127.0.0.1:7777/mcp/` by default.
+- **`plugins/docs/INTEGRATION_GUIDE.md`** rewritten around in-process MCP as the primary path.
+- **`/api/retrievals/stream`** registered before `/api/retrievals/{run_id}` (route-order fix).
+- **POST `/api/memories`** now returns `{"status":"added","id":"<uuid>"}` and accepts empty `assistant_output` (defaults to `(observed)`).
+- **`_persist_user_id`** does a minimal yaml-level merge (no longer materializes every schema default into the user's yaml).
+- **UUID-mint warning** points at `NEUROMEM_USER_ID=<uuid>` instead of the nonexistent `migrate-user` command.
+
+### Fixed
+
+- **`Task group is not initialized`** (500 on every MCP request) — FastMCP lifespan now wired into FastAPI lifespan at app construction.
+- **MCP server using `user_id="default"`** instead of yaml's UUID — `cli.py` pins `NEUROMEM_USER_ID` env before launching uvicorn.
+- **POST `/api/memories` with non-string `content`** now returns 422 (was 500).
+- **DELETE `/api/memories/<unknown-id>`** now returns 404 (was 500).
+- **PUT `/api/memories/{id}`** returns standard dashed UUID (was 32-char hex).
+- **SQLite `InterfaceError` under parallel retrieval** — `RLock` serialises cursor ops on the shared connection. The controller's `ThreadPoolExecutor`-driven parallel retrieval raced before this fix.
+- **Plugin manifest test** broadened to accept HTTP-or-stdio shape.
+
 ## [0.4.6] - 2026-04-29
 
 Root-cause fix for v0.4.2 → v0.4.5 CI cascade: `ui/src/lib/` was silently gitignored.
