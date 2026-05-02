@@ -773,13 +773,18 @@ def create_app(memory: "NeuroMem") -> FastAPI:
         from fastapi.responses import FileResponse as _FileResponse
 
         # Serve files at /assets/* etc directly (Vite emits hashed paths
-        # under /assets/). Mounting at "/" still works as the primary
-        # asset server; the catch-all below handles deep-link 404s.
-        app.mount(
-            "/assets",
-            StaticFiles(directory=str(WEB_DIR / "assets")),
-            name="spa-assets",
-        )
+        # under /assets/). Only mount if the directory exists — CI test
+        # environments install the wheel without running `npm run build`
+        # so WEB_DIR can exist (the package_data ships index.html etc)
+        # while WEB_DIR/assets does not. Without this guard StaticFiles'
+        # constructor raises RuntimeError at app construction.
+        _assets_dir = WEB_DIR / "assets"
+        if _assets_dir.exists():
+            app.mount(
+                "/assets",
+                StaticFiles(directory=str(_assets_dir)),
+                name="spa-assets",
+            )
 
         _index_html = WEB_DIR / "index.html"
 
@@ -792,7 +797,23 @@ def create_app(memory: "NeuroMem") -> FastAPI:
             candidate = WEB_DIR / full_path
             if full_path and candidate.is_file():
                 return _FileResponse(candidate)
-            return _FileResponse(_index_html)
+            if _index_html.is_file():
+                return _FileResponse(_index_html)
+            # SPA bundle absent in this install (CI / wheel-without-npm
+            # builds) — fall back to a minimal JSON placeholder.
+            from fastapi.responses import JSONResponse as _JSONResponse
+
+            return _JSONResponse(
+                {
+                    "status": "ok",
+                    "message": (
+                        "NeuroMem UI backend is live. The frontend SPA bundle is not "
+                        "shipped in this install — run `npm run build` in the `ui/` "
+                        "directory to populate it."
+                    ),
+                },
+                status_code=200,
+            )
 
     else:
 
